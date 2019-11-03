@@ -56,7 +56,7 @@ def load_and_preprocess(
     #TODO: Select input and output features
 
     #specify the desired inputs and outputs
-    input_features_list = ["MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS","OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
+    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS"]
     input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
     
     #load the features from dataframe
@@ -69,7 +69,7 @@ def load_and_preprocess(
         output_feastures_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
         ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
         output_feastures_data = features_data[:,:,ouput_features_idx].astype('float64')
-        _output = output_feastures_data[:,20:] #shape: [5,20,2]
+        _output = output_feastures_data[:,20:] #shape: [5,30,2]
     else:
         _output = None
 
@@ -83,7 +83,7 @@ def load_and_preprocess(
 #TODO Revise the Encoder
 class LSTMEncoder(nn.Module):
     def __init__(self, 
-                 input_size:int = 2,
+                 input_size:int = 5,
                  embedding_size:int = 8,
                  hidden_size:int =  16):
         super().__init__()
@@ -120,9 +120,11 @@ class LSTMDecoder(nn.Module):
 def train(train_loader, epoch ,loss_function, logger,
           encoder, decoder, encoder_optimizer, decoder_optimizer,
 ):  
-    for i, (_input, target) in enumerate(train_loader):
-        _input = _input.to(device)
-        target = target.to(device)
+    for batch_idx, (_input, target) in enumerate(train_loader):
+        #print(batch_idx)
+        _input = _input.to(device) #[5, 20, 5]
+        target = target.to(device) #[5, 30, 2]
+        # print(_input[0])
         
         #set encoder and decoder to train mode
         encoder.train()
@@ -133,15 +135,63 @@ def train(train_loader, epoch ,loss_function, logger,
         decoder_optimizer.zero_grad()
 
         #encoder arguments
-        #Input Sample shape: [5,50,11]
-        #output sample shape: [5,50,2]
+        #Input Sample shape: [5,20,5]
+        #output sample shape: [5,30,2]
         sample_size = _input.shape[0]
         input_size = _input.shape[1]
         output_size = target.shape[1]
+        #print(sample_size, input_size, output_size)
 
         #initialize the hidden state
-        encoder_hidden = (torch.zeros(sample_size,encoder.hidden_size).to(device),
-                          torch.zeros(sample_size,encoder.hidden_size).to(device))
+        # >>> rnn = nn.LSTMCell(10, 20)
+        # >>> input = torch.randn(6, 3, 10)
+        # >>> hx = torch.randn(3, 20)
+        # >>> cx = torch.randn(3, 20)
+        # >>> output = []
+        # >>> for i in range(6):
+        #         hx, cx = rnn(input[i], (hx, cx))
+        #         output.append(hx)
+
+        hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+        cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+        encoder_hidden = (hx,cx)
+
+        #Encoder observed trajectory
+        for encoder_idx in range(input_size):
+            encoder_input = _input[:, encoder_idx, :]
+            encoder_hidden = encoder(encoder_input, encoder_hidden)
+
+        #Initialize decoder input
+        decoder_input = encoder_input[:,:2]
+
+        #Initialize decoder hidden state as encoder hidden state
+        decoder_hidden = encoder_hidden
+
+        decoder_outputs = torch.zeros((sample_size, output_size, 2)).to(device)
+
+        #Initialize the losses
+        loss = 0
+
+        # Decode hidden state in future trajectory
+        for decoder_idx in range(output_size):
+            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+            decoder_outputs[:, decoder_idx,:] = decoder_output
+
+            #Accumulate the loss
+            loss += loss_function(decoder_output[:, :2], target[:, decoder_idx, :2])
+
+            #use own prediction as the input for next step
+            decoder_input = decoder_output
+        
+        #Normalize the loss
+        loss = loss/output_size
+        #Backpropagation
+        loss.backward()
+        encoder_optimizer.step()
+        decoder_optimizer.step()
+
+        #print(f"Train -- Epoch:{epoch}, loss:{loss}")
+        return loss
 
 #TODO Define the validation network
 def validate(train_loader, epoch, loss_function, logger,
@@ -153,18 +203,6 @@ def validate(train_loader, epoch, loss_function, logger,
 #TODO Define the inference function to calculate the prediction
 
 # Pytorch utiliites
-def my_collate_fn(self, batch):
-        # _input, output, helpers = [], [], []
-        _input, output= [], []
-
-        for item in batch:
-            _input.append(item[0])
-            output.append(item[1])
-            # helpers.append(item[2])
-        _input = torch.stack(_input)
-        output = torch.stack(output)
-        # return [_input, output, helpers]
-        return [_input, output]
 
 #TODO Correct the dataset loader
 class Dataset_Loader(Dataset):
@@ -255,9 +293,9 @@ def main():
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
-    batch_size = 256
+    batch_size = 1
     lr = 0.001
-    num_epochs = 10
+    num_epochs = 100000
     epoch = 0
 
     args = parser.parse_args()
@@ -276,8 +314,8 @@ def main():
 
     #Get the model
     loss_function = nn.MSELoss()
-    encoder = LSTMEncoder(2, 8, 16)
-    decoder = LSTMDecoder(8,16,2)
+    encoder = LSTMEncoder(input_size=5)
+    decoder = LSTMDecoder(output_size=2)
     encoder.to(device)
     decoder.to(device)
 
@@ -295,7 +333,9 @@ def main():
     print(len(train_dataset))
     
     #TODO Test dataloader
-    print(train_dataset[0][0].shape)
+    # print(train_dataset[0][0].shape) #shape: [20, 5]
+    # print(train_dataset[0][1].shape) #shape: [30, 2]
+    # print(train_dataset[0][0])
 
     #Setting Dataloader
     train_loader = DataLoader(
@@ -304,6 +344,8 @@ def main():
         drop_last = False,
         shuffle = False,
     )
+
+    #print(train_loader.shape)
 
     val_loader = DataLoader(
         val_dataset,
@@ -321,7 +363,7 @@ def main():
     prev_loss = best_loss
     while epoch < num_epochs:
         start = time.time()
-        train(
+        loss = train(
             train_loader,
             epoch,
             loss_function,
@@ -333,9 +375,10 @@ def main():
         )
         end = time.time()
 
-        print(
-            f"Epoch: {epoch} completed in: {end-start}s, Total time: {(end - global_start_time) /60.0} mins"
-        )
+        if epoch % 500==0:
+            print(
+                f"Epoch: {epoch} completed in: {end-start}s, Total time: {(end - global_start_time) /60.0} mins, loss is: {loss}"
+            )
 
         epoch+=1
         if epoch % 5==0:
@@ -352,9 +395,9 @@ def main():
                 prev_loss,
             )
             val_end_time = time.time()
-            print(
-                f"Validation loss: {prev_loss}, Total time: {(val_end_time-global_start_time)/60.0} mins"
-            )
+            # print(
+            #     f"Validation loss: {prev_loss}, Total time: {(val_end_time-global_start_time)/60.0} mins"
+            # )
 
 if __name__ == "__main__":
     main()
