@@ -42,6 +42,9 @@ if cuda:
 else:
     device = torch.device('cpu')
 
+#Global parameters
+best_loss = float("inf")
+
 #Load the Data
 def load_and_preprocess(
     feature_file: str = "features/forecasting_features_val.pkl",
@@ -194,11 +197,86 @@ def train(train_loader, epoch ,loss_function, logger,
         return loss
 
 #TODO Define the validation network
-def validate(train_loader, epoch, loss_function, logger,
+def validate(val_loader, epoch, loss_function, logger,
             encoder, decoder, encoder_optimizer, decoder_optimizer,
             prev_loss
 ):
-    pass
+    global best_loss
+    loss_list = []
+
+    for i, (_input, target) in enumerate(val_loader):
+
+        _input = _input.to(device)
+        target = target.to(device)
+
+        #set encoder and decoder to validation mode
+        encoder.eval()
+        decoder.eval() 
+
+        #Define encoder arguments
+        sample_size = _input.shape[0]
+        input_size = _input.shape[1]
+        output_size = target.shape[1]
+
+        #Initialize encoder hidden state
+        hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+        cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+        encoder_hidden = (hx,cx)
+
+        #Encoder observed trajectory
+        for encoder_idx in range(input_size):
+            encoder_input = _input[:, encoder_idx, :]
+            encoder_hidden = encoder(encoder_input, encoder_hidden)
+
+        #Initialize decoder input
+        decoder_input = encoder_input[:,:2]
+
+        #Initialize decoder hidden state as encoder hidden state
+        decoder_hidden = encoder_hidden
+
+        decoder_outputs = torch.zeros((sample_size, output_size, 2)).to(device)
+
+        #Initialize loss
+        loss = 0
+
+        # Decode hidden state in future trajectory
+        for decoder_idx in range(output_size):
+            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+            decoder_outputs[:, decoder_idx,:] = decoder_output
+
+            #Accumulate the loss
+            loss += loss_function(decoder_output[:, :2], target[:, decoder_idx, :2])
+
+            #use own prediction as the input for next step
+            decoder_input = decoder_output
+        
+        #Normalize the loss (in one batch)
+        loss = loss/output_size
+        loss_list.append(loss)
+
+    #Average the loss (for all batches)
+    val_loss = sum(loss_list)/len(loss_list)
+
+    if val_loss <= best_loss:
+        best_loss = val_loss
+        
+        save_dir = 'models'
+        os.makedirs(save_dir,exist_ok=True)
+        filename = "{}/LSTM.pth.tar".format(save_dir)
+
+        state = {
+                "epoch": epoch + 1,
+                "encoder_state_dict": encoder.state_dict(),
+                "decoder_state_dict": decoder.state_dict(),
+                "best_loss": val_loss,
+                "encoder_optimizer": encoder_optimizer.state_dict(),
+                "decoder_optimizer": decoder_optimizer.state_dict(),
+            }
+        torch.save(state, filename)
+    
+    return val_loss
+
+
 
 #TODO Define the inference function to calculate the prediction
 
@@ -288,14 +366,14 @@ class Dataset_Loader(Dataset):
 
 def main():
     #Directories
-    train_dir = "data/train/data"
-    val_dir = "data/val/data"
+    train_dir = 'features/features_train.pkl'
+    val_dir = 'features/forecasting_features_val.pkl'
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
-    batch_size = 1
+    batch_size = 64
     lr = 0.001
-    num_epochs = 100000
+    num_epochs = 10000
     epoch = 0
 
     args = parser.parse_args()
@@ -306,8 +384,8 @@ def main():
     model_utils = ModelUtils()
 
     #Get the data, in dictionary format
-    data_dict = load_and_preprocess()
-    val_dict = load_and_preprocess()
+    data_dict = load_and_preprocess(train_dir)
+    val_dict = load_and_preprocess(val_dir)
     # data_input = data_dict["input"]
     # data_output = data_dict["output"]
     # print(data_input.shape)
@@ -322,8 +400,7 @@ def main():
     #TODO change to correct optimizers
     encoder_optimizer = Adam(encoder.parameters(), lr = lr)
     decoder_optimizer = Adam(decoder.parameters(), lr = lr)
-    # encoder_optimizer = 0
-    # decoder_optimizer = 0
+
     #Training
     #Logger
     log_dir = os.path.join(os.getcwd(), "lstm_logs")
@@ -332,7 +409,6 @@ def main():
     val_dataset = Dataset_Loader(val_dict, "val")
     print(len(train_dataset))
     
-    #TODO Test dataloader
     # print(train_dataset[0][0].shape) #shape: [20, 5]
     # print(train_dataset[0][1].shape) #shape: [30, 2]
     # print(train_dataset[0][0])
@@ -375,13 +451,13 @@ def main():
         )
         end = time.time()
 
-        if epoch % 500==0:
+        if epoch % 100==0:
             print(
                 f"Epoch: {epoch} completed in: {end-start}s, Total time: {(end - global_start_time) /60.0} mins, loss is: {loss}"
             )
 
         epoch+=1
-        if epoch % 5==0:
+        if epoch % 500==0:
             val_start_time = time.time()
             model_loss = validate(
                 val_loader,
@@ -395,9 +471,9 @@ def main():
                 prev_loss,
             )
             val_end_time = time.time()
-            # print(
-            #     f"Validation loss: {prev_loss}, Total time: {(val_end_time-global_start_time)/60.0} mins"
-            # )
+            print(
+                f"Validation loss: {model_loss}, Total time: {(val_end_time-global_start_time)/60.0} mins"
+            )
 
 if __name__ == "__main__":
     main()
