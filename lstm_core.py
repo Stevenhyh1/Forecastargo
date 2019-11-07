@@ -1,28 +1,28 @@
 import os
 import time
+import math
 import argparse
 import torch
 import joblib
 import pandas as pd
 import numpy as np
-import utils.baseline_utils as baseline_utils
 import utils.baseline_config as config
 import torch.nn.functional as F
 import torch
 from torch import nn
 from torch.optim import Adam
 from typing import Tuple, Any, Dict
-from joblib import Parallel, delayed
 from torch.utils.data import Dataset, DataLoader
-from utils.lstm_utils import ModelUtils, LSTMDataset
 from logger import Logger
-
+from shapely.geometry import Point, Polygon, LineString, LinearRing
+from shapely.affinity import affine_transform, rotate
+from argoverse.evaluation.eval_forecasting import compute_forecasting_metrics
+from argoverse.utils.forecasting_evaluation import evaluate_prediction
 
 from utils.baseline_config import (
     BASELINE_INPUT_FEATURES,
     BASELINE_OUTPUT_FEATURES,
     FEATURE_FORMAT,
-    LSTM_DICT_NAME,
 )
 
 #Input Arguments
@@ -45,6 +45,63 @@ else:
 #Global parameters
 best_loss = float("inf")
 
+
+#Define utility function
+def normalize_trajectory(dataframe):
+    observe_len = 20
+    translation = []
+    rotation = []
+
+    normalized_traj = []
+    features_data = np.stack(dataframe["FEATURES"].values)
+    x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
+    y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
+
+    num_samples  = x.shape[0]
+
+    #Normalize the trajectory for each sample
+    for i in range(num_samples):
+        #In each sample
+        xy_tuple = np.stack((x[i],y[i]), axis = 1) #shape [50,2]
+        traj = LineString(xy_tuple)
+        start = traj[0] #shape [2,]
+
+        #Translation normalization: start with (0.0, 0.0)
+        #[a, b, c, d, x, y] is the planner transformation matrix[a, b, x; c, d, y; 0, 0, 1]
+        g = [1, 0, 0, 1, -start[0], -start[1]]
+        traj_trans = affine_transform(traj, g)
+        
+        #Rotation normalization: 
+        end = traj_trans.coords[observe_len-1]
+        if end[0]==0 and end[1]==0:
+            angle = 0.0
+        elif end[0]==0:
+            angle = 90.0 if end[1]<0 else -90.0
+        elif end[1]==0:
+            angle = 0.0 if end[0]>0 else 180.0
+        else:
+            angle = math.degrees(math.atan(end[1]/end[0]))
+            if (end[0] > 0 and end[1] > 0) or (end[0] > 0 and end[1] < 0):
+                angle = -angle
+            else:
+                angle = 180.0 - angle
+        #Rotate normalization: end with y=0
+        traj_rotate = rotate(traj_trans, angle, origin=(0,0)).coords[:]
+
+        #Transform to numpy
+        traj_norm = np.array(traj_rotate)
+
+        #Append to containers
+        translation.append(g)
+        rotation.append(angle)
+        normalized_traj.append(traj_norm)
+    
+    #update the dataframe and return normalized trajectory
+    dataframe["TRANSLATION"] = translation
+    dataframe["ROTATION"] = rotation
+    return np.stack(normalized_traj)
+
+
 #Load the Data
 def load_and_preprocess(
     feature_file: str = "features/forecasting_features_val.pkl",
@@ -55,8 +112,8 @@ def load_and_preprocess(
     dataframe = pd.read_pickle(feature_file)
     features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,11]
 
-    #TODO: Normalize the data
-    #TODO: Select input and output features
+    #Normalize the trajectory (only for without map)
+    #norm_traj = normalize_trajectory(dataframe)
 
     #specify the desired inputs and outputs
     input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS"]
@@ -203,6 +260,7 @@ def validate(val_loader, epoch, loss_function, logger,
 ):
     global best_loss
     loss_list = []
+    dis_list = []
 
     for i, (_input, target) in enumerate(val_loader):
 
@@ -254,8 +312,12 @@ def validate(val_loader, epoch, loss_function, logger,
         loss = loss/output_size
         loss_list.append(loss)
 
+        dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().numpy())**2/sample_size)
+        dis_list.append(dis)
+
     #Average the loss (for all batches)
     val_loss = sum(loss_list)/len(loss_list)
+    avg_dis = sum(dis_list)/len(dis_list)
 
     if val_loss <= best_loss:
         best_loss = val_loss
@@ -274,7 +336,7 @@ def validate(val_loader, epoch, loss_function, logger,
             }
         torch.save(state, filename)
     
-    return val_loss
+    return val_loss, avg_dis
 
 
 
@@ -303,7 +365,7 @@ class Dataset_Loader(Dataset):
         self.num_samples = self.input_data.shape[0]
 
         #Process parameter
-        self.normalize = 1
+        self.normalize = 0
         self.use_map = 1
         self.use_delta = 1
 
@@ -320,31 +382,24 @@ class Dataset_Loader(Dataset):
             # self.datatuple[idx],
         )
 
-    # def getitem_helpers(self) -> Tuple[Any]:
-    #     """Get helpers for running baselines.
+    def getitem_helpers(self) -> Tuple[Any]:
 
-    #     Returns:
-    #         helpers: Tuple in the format specified by LSTM_HELPER_DICT_IDX
-
-    #     Note: We need a tuple because DataLoader needs to index across all these helpers simultaneously.
-
-    #     """
-    #     helper_df = self.data_dict["dataframe"]
-    #     candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
-    #     candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
-    #     xcoord = np.stack(helper_df["FEATURES"].values
-    #                       )[:, :, config.FEATURE_FORMAT["X"]].astype("float")
-    #     ycoord = np.stack(helper_df["FEATURES"].values
-    #                       )[:, :, config.FEATURE_FORMAT["Y"]].astype("float")
-    #     centroids = np.stack((xcoord, ycoord), axis=2)
-    #     _DEFAULT_HELPER_VALUE = np.full((centroids.shape[0]), None)
-    #     city_names = np.stack(helper_df["FEATURES"].values
-    #                           )[:, :, config.FEATURE_FORMAT["CITY_NAME"]]
+        helper_df = self.data_dict["dataframe"]
+        candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
+        candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
+        xcoord = np.stack(helper_df["FEATURES"].values
+                          )[:, :, config.FEATURE_FORMAT["X"]].astype("float")
+        ycoord = np.stack(helper_df["FEATURES"].values
+                          )[:, :, config.FEATURE_FORMAT["Y"]].astype("float")
+        centroids = np.stack((xcoord, ycoord), axis=2)
+        _DEFAULT_HELPER_VALUE = np.full((centroids.shape[0]), None)
+        city_names = np.stack(helper_df["FEATURES"].values
+                              )[:, :, config.FEATURE_FORMAT["CITY_NAME"]]
     #     seq_paths = helper_df["SEQUENCE"].values
-    #     translation = (helper_df["TRANSLATION"].values
-    #                    if self.normalize else _DEFAULT_HELPER_VALUE)
-    #     rotation = (helper_df["ROTATION"].values
-    #                 if self.normalize else _DEFAULT_HELPER_VALUE)
+        translation = (helper_df["TRANSLATION"].values
+                       if self.normalize else _DEFAULT_HELPER_VALUE)
+        rotation = (helper_df["ROTATION"].values
+                    if self.normalize else _DEFAULT_HELPER_VALUE)
 
     #     use_candidates = self.use_map and self.mode == "test"
 
@@ -366,22 +421,20 @@ class Dataset_Loader(Dataset):
 
 def main():
     #Directories
-    train_dir = 'features/features_train.pkl'
+    train_dir = 'features/forecasting_features_val.pkl'
     val_dir = 'features/forecasting_features_val.pkl'
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
     batch_size = 64
     lr = 0.001
-    num_epochs = 10000
+    num_epochs = 20000
     epoch = 0
 
     args = parser.parse_args()
     print(f"Using all ({joblib.cpu_count()}) CPUs....")
     if cuda:
         print(f"Using all ({torch.cuda.device_count()}) GPUs...")
-    #Define the model
-    model_utils = ModelUtils()
 
     #Get the data, in dictionary format
     data_dict = load_and_preprocess(train_dir)
@@ -459,7 +512,7 @@ def main():
         epoch+=1
         if epoch % 500==0:
             val_start_time = time.time()
-            model_loss = validate(
+            model_loss, avg_dis = validate(
                 val_loader,
                 epoch,
                 loss_function,
@@ -472,7 +525,7 @@ def main():
             )
             val_end_time = time.time()
             print(
-                f"Validation loss: {model_loss}, Total time: {(val_end_time-global_start_time)/60.0} mins"
+                f"Validation loss: {model_loss}, Average distance: {avg_dis}, Total time: {(val_end_time-global_start_time)/60.0} mins"
             )
 
 if __name__ == "__main__":
