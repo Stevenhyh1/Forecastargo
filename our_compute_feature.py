@@ -73,11 +73,18 @@ def compute_map_features(
         oracle_nt_dist[i,:] = oracle_nt_dist[i,:]-oracle_nt_dist[i-1,:]
     oracle_nt_dist[0,:] = 0
     
+    angle_w_cl = np.zeros((xy.shape[0],1))
+    angle_w_cl[1:,0] = np.arctan(oracle_nt_dist[1:,1]/oracle_nt_dist[1:,0])
+    angle_w_cl[0,:] = angle_w_cl[1,:]
+    angle_w_cl[np.isnan(angle_w_cl)] = np.pi/2
+    
+    map_features = np.concatenate((oracle_nt_dist,angle_w_cl), axis=1)
+    
     if mode=="test":
-        oracle_nt_dist = np.concatenate(
-                (oracle_nt_dist, np.full([pred_len,2], None)), axis=0)
+        map_features = np.concatenate(
+                (map_features, np.full([pred_len,3], None)), axis=0)
 
-    return oracle_nt_dist, oracle_centerline, delta_ref
+    return map_features, oracle_centerline, delta_ref
 
 def load_compute_save (idx, file_names, social_instance):
     data = []
