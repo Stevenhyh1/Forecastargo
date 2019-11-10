@@ -4,9 +4,10 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+#import time
+#import os
 
 from baseline_config import (
     PADDING_TYPE,
@@ -16,8 +17,8 @@ from baseline_config import (
     DEFAULT_MIN_DIST_FRONT_AND_BACK,
     NEARBY_DISTANCE_THRESHOLD,
     FRONT_OR_BACK_OFFSET_THRESHOLD,
+    RAW_DATA_FORMAT
 )
-
 
 class SocialFeaturesUtils:
     """Utils class for computation of social features."""
@@ -30,7 +31,7 @@ class SocialFeaturesUtils:
         self.DEFAULT_MIN_DIST_FRONT_AND_BACK = DEFAULT_MIN_DIST_FRONT_AND_BACK
         self.NEARBY_DISTANCE_THRESHOLD = NEARBY_DISTANCE_THRESHOLD
 
-    def compute_velocity(self, track_df: pd.DataFrame) -> List[float]:
+    def compute_velocity(self, track_coords: np.ndarray, time: np.ndarray):
         """Compute velocities for the given track.
 
         Args:
@@ -39,18 +40,20 @@ class SocialFeaturesUtils:
             vel (list of float): Velocity at each timestep
 
         """
-        x = track_df["X"].values
-        y = track_df["Y"].values
-        t = track_df["TIMESTAMP"].values.astype('float')
+        x = track_coords[:,0].astype('float')
+        y = track_coords[:,1].astype('float')
+        time = time.astype('float')
+        velocity = np.empty((len(time)))
         
-        dt = t[1:]-t[:-1]
+        dt = time[1:]-time[:-1]
         vx = (x[1:]-x[:-1])/dt
         vy = (y[1:]-y[:-1])/dt
-        velocity = np.sqrt(np.square(vx)+np.square(vy))
+        velocity[1:] = np.sqrt(np.square(vx)+np.square(vy))
+        velocity[0] = velocity[1]
 
-        return velocity
+        return velocity.reshape((len(time),1))
 
-    def get_is_track_stationary(self, track_df: pd.DataFrame) -> bool:
+    def get_is_track_stationary(self, track_df: pd.DataFrame):
         """Check if the track is stationary.
 
         Args:
@@ -59,7 +62,14 @@ class SocialFeaturesUtils:
             _ (bool): True if track is stationary, else False 
 
         """
-        velocity = self.compute_velocity(track_df)
+        track_coords_x = track_df["X"].values
+        track_coords_y = track_df["Y"].values
+        length = len(track_coords_x)
+        track_coords = np.empty((length,2))
+        track_coords[:,0] = track_coords_x
+        track_coords[:,1] = track_coords_y
+        time = track_df["TIMESTAMP"].values.astype('float')
+        velocity = self.compute_velocity(track_coords, time)
         sort_velocity = np.sort(velocity)
         velocity_thres = sort_velocity[self.STATIONARY_THRESHOLD]
         
@@ -74,7 +84,7 @@ class SocialFeaturesUtils:
             track_array: np.ndarray,
             timestamps: np.ndarray,
             raw_data_format: Dict[str, int],
-    ) -> np.ndarray:
+    ):
         """Handle the case where the object exited and then entered the frame but still retains the same track id. It'll be a rare case.
 
         Args:
@@ -103,7 +113,7 @@ class SocialFeaturesUtils:
             timestamps: np.ndarray,
             obs_len: int,
             raw_data_format: Dict[str, int],
-    ) -> np.ndarray:
+    ):
         """Pad incomplete tracks.
 
         Args:
@@ -137,7 +147,7 @@ class SocialFeaturesUtils:
         return padded_track_data
 
     def track_filter(self, df: pd.DataFrame, obs_len: int,
-                      raw_data_format: Dict[str, int]) -> np.ndarray:
+                      raw_data_format: Dict[str, int]):
         """Pad tracks which don't last throughout the sequence. Also, filter out non-relevant tracks.
 
         Args:
@@ -182,7 +192,7 @@ class SocialFeaturesUtils:
             neigh_x: float,
             neigh_y: float,
             raw_data_format: Dict[str, int],
-    ) -> Optional[str]:
+    ):
         """Check if the neighbor is in front or back of the track.
 
         Args:
@@ -239,10 +249,11 @@ class SocialFeaturesUtils:
     def distance_and_num_neighbour(
             self,
             agent_track: np.ndarray,
+            timestamps: np.ndarray,
             social_tracks: np.ndarray,
             obs_len: int,
             raw_data_format: Dict[str, int],
-    ) -> np.ndarray:
+    ):
         """Get minimum distance of the tracks in front and in back.
 
         Args:
@@ -252,12 +263,30 @@ class SocialFeaturesUtils:
             raw_data_format (Dict): Format of the sequence
             viz (bool): Visualize tracks
         Returns:
-            min_distance_front_and_back (numpy array): obs_len x 2, minimum front and back distances
-            num_neighbors (numpy array): Number of neighbors at each timestep
+            features (obs_len x 8):
+                min_distance_front
+                min_distance_back
+                MIN_DISTANCE_FRONT_VEL
+                MIN_DISTANCE_BACK_VEL
+                num_neighbors
+                NEIGHBORS_MEAN_VEL
+                NEIGHBORS_MAX_VEL
+                NEIGHBORS_MIN_VEL
 
         """
         min_distance = np.full((obs_len, 2), self.DEFAULT_MIN_DIST_FRONT_AND_BACK)
+        min_distance_vel = np.full((obs_len, 2), 0)
         num_neighbor = np.full((obs_len, 1), 0)
+        neighbor_vel = np.empty((obs_len, 3))
+        
+        social_coords = social_tracks[:,:,(raw_data_format["X"],raw_data_format["Y"])]
+        social_vel = np.empty((social_coords.shape[0],social_coords.shape[1],1))
+        
+        for i in range(social_tracks.shape[0]):
+            social_vel[i,:,:] = self.compute_velocity(social_coords[i,:,:],timestamps)
+        
+        agent_coords = agent_track[:,(raw_data_format["X"],raw_data_format["Y"])]
+        agent_vel = self.compute_velocity(agent_coords,timestamps)
         
         # Compute distances for each timestep in the sequence
         for i in range(obs_len):
@@ -265,10 +294,17 @@ class SocialFeaturesUtils:
             # Agent coordinates
             agent_x = agent_track[i, raw_data_format["X"]]
             agent_y = agent_track[i, raw_data_format["Y"]]
-
+            
+            mean_vel = 0
+            max_vel = 0
+            min_vel = np.inf
+            front_min_ind = -1
+            back_min_ind = -1
+            total_weight = 0
             # Compute distances for all the social tracks
-            for social_track in social_tracks[:, i, :]:
+            for j in range(social_tracks.shape[0]):
 
+                social_track = social_tracks[j,i,:]
                 neigh_x = social_track[raw_data_format["X"]]
                 neigh_y = social_track[raw_data_format["Y"]]
 
@@ -277,11 +313,14 @@ class SocialFeaturesUtils:
                                            (agent_y - neigh_y)**2)
 
                 # If not a neighbor, continue
-                if distance > self.NEARBY_DISTANCE_THRESHOLD:
-                    continue
-                
-                # Add neighbour numbers
-                num_neighbor[i, 0] += 1
+                if distance <= self.NEARBY_DISTANCE_THRESHOLD:
+                    # Add neighbour numbers
+                    num_neighbor[i, 0] += 1
+                    neigh_vel = social_vel[j,i,0]
+                    mean_vel += neigh_vel/distance
+                    total_weight += 1/distance
+                    max_vel = max(max_vel,neigh_vel)
+                    min_vel = min(min_vel,neigh_vel)
                 
                 # Check if the social track is in front or back
                 position_state = self.get_is_front_or_back(
@@ -291,13 +330,50 @@ class SocialFeaturesUtils:
                     raw_data_format,
                 )
                 if position_state == "front":
-                    min_distance[i, 0] = min(min_distance[i, 0], distance)
+                    if distance < min_distance[i,0]:
+                        min_distance[i, 0] = distance
+                        front_min_ind = j
 
                 elif position_state == "back":
-                    min_distance[i, 1] = min(min_distance[i, 1], distance)
+                    if distance < min_distance[i,1]:
+                        min_distance[i, 1] = distance
+                        back_min_ind = j
+                    
+            if num_neighbor[i,0] == 0:
+                neighbor_vel[i,:] = np.asarray([agent_vel[i],agent_vel[i],agent_vel[i]]).flatten()
+            else:
+                neighbor_vel[i,0] = mean_vel/total_weight
+                neighbor_vel[i,1] = max_vel
+                neighbor_vel[i,2] = min_vel
+                
+            if front_min_ind > -1:
+                min_distance_vel[i,0] = agent_vel[i] - social_vel[front_min_ind,i,0]
+            if back_min_ind > -1:
+                min_distance_vel[i,1] = agent_vel[i] - social_vel[back_min_ind,i,0]
 
-        return min_distance,num_neighbor
+        
+        features = np.concatenate((min_distance,min_distance_vel,num_neighbor,neighbor_vel),axis=1)
+        return features
 
+    def compute_rotation_angle(self,coords: np.ndarray):
+        x = coords[:,0]
+        y = coords[:,1]
+        dx = np.zeros(x.shape)
+        dy = np.zeros(y.shape)
+        dx[1:] = x[1:] - x[:-1]
+        dy[1:] = y[1:] - y[:-1]
+        angle = np.zeros(x.shape)
+        for i in range(1,len(x)):
+            if dx[i] == 0:
+                angle[i] = angle[i-1]
+            else:
+                angle[i] = np.arctan(np.divide(dy[i],dx[i]))
+                
+        ind0 = np.where(angle!=0)[0][0]
+        angle[ind0:] = angle[ind0:] - angle[ind0]
+        
+        return angle.reshape((len(x),1))
+    
     def compute_social_features(
             self,
             df: pd.DataFrame,
@@ -305,7 +381,7 @@ class SocialFeaturesUtils:
             obs_len: int,
             total_len: int,
             raw_data_format: Dict[str, int],
-    ) -> np.ndarray:
+    ):
         """Compute social features for the given sequence.
 
         Social features are meant to capture social context. 
@@ -327,22 +403,49 @@ class SocialFeaturesUtils:
         if agent_t.shape[0] == obs_len:
             df_obs = df
             agent_track_obs = agent_track
+            obs_timestamps = agent_t
         else:
             df_obs = df[df['TIMESTAMP']<agent_t[obs_len]]
             agent_track_obs = agent_track[:obs_len,:]
+            obs_timestamps = agent_t[:obs_len]
             
         neigh_track = self.track_filter(df_obs, obs_len,raw_data_format)
+        obs_timestamps = obs_timestamps.astype('float')
+        features = self.distance_and_num_neighbour(agent_track_obs,
+                                                   obs_timestamps,
+                                                   neigh_track,
+                                                   obs_len,
+                                                   raw_data_format)
         
-        distance_obs,num_neigh_obs = self.distance_and_num_neighbour(agent_track_obs,
-                                                                     neigh_track,
-                                                                     obs_len,
-                                                                     raw_data_format)
+        angle = self.compute_rotation_angle(agent_track_obs[:,(raw_data_format["X"],raw_data_format["Y"])])
         
         if agent_track.shape[0] == obs_len:
-            social_features = np.concatenate((distance_obs,num_neigh_obs),axis=1)
+            social_features = np.concatenate((features,angle),axis=1)
         
         else:
-            social_features = np.full((total_len,3),None)
-            social_features[:obs_len,:] = np.concatenate((distance_obs,num_neigh_obs),axis=1)
+            social_features = np.full((total_len,9),None)
+            social_features[:obs_len,:] = np.concatenate((features,angle),axis=1)
             
         return social_features
+
+#if __name__ == "__main__":
+#    file_names = os.listdir("../argoverse-api/train/data")
+#    np.random.shuffle(file_names)
+#    file_names = file_names[:100]
+##    file_names = '../argoverse-api/forecasting_sample/data/.csv'
+#    n_file = len(file_names)
+#    social_instance = SocialFeaturesUtils()
+#    
+#    start = time.time()
+#    
+#    for i in range(n_file):
+#        file_path = "../argoverse-api/train/data/"+file_names[i]
+##        file_path = file_names
+#        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
+#        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
+#        social_instance = SocialFeaturesUtils()
+#        features = social_instance.compute_social_features(df,agent_track,20,50,RAW_DATA_FORMAT)
+#        print(i)
+#    
+#    end = time.time()
+#    print(end-start)
