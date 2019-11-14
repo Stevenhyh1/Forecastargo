@@ -74,9 +74,9 @@ def compute_map_features(
     oracle_nt_dist[0,:] = 0
     
     angle_w_cl = np.zeros((xy.shape[0],1))
-    angle_w_cl[1:,0] = np.arctan(oracle_nt_dist[1:,1]/oracle_nt_dist[1:,0])
+    angle_w_cl[1:,0] = np.arctan2(oracle_nt_dist[1:,1],oracle_nt_dist[1:,0])
     angle_w_cl[0,:] = angle_w_cl[1,:]
-    angle_w_cl[np.isnan(angle_w_cl)] = np.pi/2
+#    angle_w_cl[np.isnan(angle_w_cl)] = np.pi/2
     
     map_features = np.concatenate((oracle_nt_dist,angle_w_cl), axis=1)
     
@@ -163,8 +163,10 @@ if __name__ == "__main__":
     
 
 #    df = pd.read_pickle('../forecasting_sample/all_feature/features_'+mode+'.pkl')
-#    feat = np.stack(df["FEATURES"].values)[:, :,3]
-#    print(feat)
+#    feat = np.stack(df["FEATURES"].values)
+#    ang = feat[0,:,17]
+#    
+#    print(ang)
     
     
 #    file_path = '../forecasting_sample/data/3828.csv'
