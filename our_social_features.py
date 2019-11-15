@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-#import time
-#import os
+import time
+import os
 
 from baseline_config import (
     PADDING_TYPE,
@@ -362,15 +362,11 @@ class SocialFeaturesUtils:
         dy = np.zeros(y.shape)
         dx[1:] = x[1:] - x[:-1]
         dy[1:] = y[1:] - y[:-1]
-        angle = np.zeros(x.shape)
-        for i in range(1,len(x)):
-            if dx[i] == 0:
-                angle[i] = angle[i-1]
-            else:
-                angle[i] = np.arctan(np.divide(dy[i],dx[i]))
-                
-        ind0 = np.where(angle!=0)[0][0]
+        angle = np.arctan2(dy,dx)
+        ind0 = np.nonzero(angle)[0][0]
         angle[ind0:] = angle[ind0:] - angle[ind0]
+        scale = np.sign(angle)*(np.abs(angle)//np.pi)
+        angle = angle - scale*np.pi*2
         
         return angle.reshape((len(x),1))
     
@@ -429,23 +425,24 @@ class SocialFeaturesUtils:
         return social_features
 
 #if __name__ == "__main__":
-#    file_names = os.listdir("../argoverse-api/train/data")
-#    np.random.shuffle(file_names)
-#    file_names = file_names[:100]
-##    file_names = '../argoverse-api/forecasting_sample/data/.csv'
-#    n_file = len(file_names)
+##    file_names = os.listdir("../train/data")
+##    np.random.shuffle(file_names)
+##    file_names = file_names[:100]
+##    file_names = os.listdir('../forecasting_sample/data')
+#    n_file = 1#len(file_names)
 #    social_instance = SocialFeaturesUtils()
 #    
-#    start = time.time()
+##    start = time.time()
 #    
 #    for i in range(n_file):
-#        file_path = "../argoverse-api/train/data/"+file_names[i]
+#        file_path = "../train/data/"+'97269.csv'#file_names[i]
 ##        file_path = file_names
 #        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
 #        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
 #        social_instance = SocialFeaturesUtils()
 #        features = social_instance.compute_social_features(df,agent_track,20,50,RAW_DATA_FORMAT)
 #        print(i)
+#        print(features[:20,-1])
 #    
-#    end = time.time()
-#    print(end-start)
+##    end = time.time()
+##    print(end-start)
