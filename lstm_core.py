@@ -51,8 +51,6 @@ def normalize_trajectory(dataframe):
     translation = []
     rotation = []
 
-    normalized_traj = []
-    features_data = np.stack(dataframe["FEATURES"].values)
     x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
     y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
 
@@ -427,7 +425,7 @@ def main():
     #Hyperparameters
     batch_size = 64
     lr = 0.001
-    num_epochs = 1000
+    num_epochs = 20000
     epoch = 0
 
     args = parser.parse_args()
