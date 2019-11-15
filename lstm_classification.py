@@ -6,19 +6,20 @@ import torch
 import joblib
 import pandas as pd
 import numpy as np
-import baseline_config as config
+import utils.baseline_config as config
 import torch.nn.functional as F
 import torch
 from torch import nn
 from torch.optim import Adam
 from typing import Tuple, Any, Dict
 from torch.utils.data import Dataset, DataLoader
+from logger import Logger
 from shapely.geometry import Point, Polygon, LineString, LinearRing
 from shapely.affinity import affine_transform, rotate
 from argoverse.evaluation.eval_forecasting import compute_forecasting_metrics
 from argoverse.utils.forecasting_evaluation import evaluate_prediction
 
-from baseline_config import (
+from utils.baseline_config import (
     BASELINE_INPUT_FEATURES,
     BASELINE_OUTPUT_FEATURES,
     FEATURE_FORMAT,
@@ -116,17 +117,17 @@ def load_and_preprocess(
 
     #specify the desired inputs and outputs
     input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS"]
-    #input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
-    input_features_idx = [9,10,6,7,8]
+    input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
+    
     #load the features from dataframe
     input_features_data = features_data[:,:,input_features_idx].astype('float64') #shape: [5,50,5]
+
 
     _input = input_features_data[:,:20] #shape: [5,20,5]
     
     if mode == "train":
         output_feastures_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
-        #ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
-        ouput_features_idx = [9,10]
+        ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
         output_feastures_data = features_data[:,:,ouput_features_idx].astype('float64')
         _output = output_feastures_data[:,20:] #shape: [5,30,2]
     else:
@@ -249,8 +250,8 @@ def train(train_loader, epoch ,loss_function, logger,
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-    #print(f"Train -- Epoch:{epoch}, loss:{loss}")
-    return loss
+        #print(f"Train -- Epoch:{epoch}, loss:{loss}")
+        return loss
 
 #TODO Define the validation network
 def validate(val_loader, epoch, loss_function, logger,
@@ -427,7 +428,7 @@ def main():
     #Hyperparameters
     batch_size = 64
     lr = 0.001
-    num_epochs = 1000
+    num_epochs = 20000
     epoch = 0
 
     args = parser.parse_args()
