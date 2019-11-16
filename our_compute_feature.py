@@ -23,11 +23,11 @@ obs_len = 20
 pred_len = 30
 
 # following must be changed according to situation !!!!!!!!!
-data_dir = "../forecasting_sample/data"
-batch_feature_dir = "../forecasting_sample/feature"
-feature_dir = "../forecasting_sample/all_feature"
+data_dir = "../data/train/data"
+batch_feature_dir = "../data/train/data"
+feature_dir = "../data/train/data/data_pickle"
 
-batch_size = 5
+batch_size = 100
 
 mode = "train"
 ###################
@@ -86,12 +86,12 @@ def compute_map_features(
 
     return map_features, oracle_centerline, delta_ref
 
-def load_compute_save (idx, file_names, social_instance):
+def load_compute_save (idx, file_names, social_instance, data_subdir):
     data = []
     for name in file_names[idx:(idx+batch_size)]:
         if not name.endswith(".csv"):
             continue
-        file_path = data_dir+'/'+name
+        file_path = data_subdir+'/'+name
         df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
         agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
         
@@ -129,7 +129,7 @@ def load_compute_save (idx, file_names, social_instance):
     print(f"finished computing index {idx} to {idx+batch_size-1}")
     sys.stdout.flush()
     
-def merge_all_features():
+def merge_all_features(idx):
     batch_files = os.listdir(batch_feature_dir)
     all_features = []
     for name in batch_files:
@@ -143,23 +143,28 @@ def merge_all_features():
 
     all_features_df = pd.concat(all_features, ignore_index=True)
 
-    all_features_df.to_pickle(f"{feature_dir}/features_{mode}.pkl")
+    all_features_df.to_pickle(f"{feature_dir}/features_{mode}_{idx}.pkl")
 
     
 
 if __name__ == "__main__":
-    file_names = os.listdir(data_dir)
-    n_file = len(file_names)
-    social_instance = SocialFeaturesUtils()
-    
-    start = time.time()
-    
-    Parallel(n_jobs=-2)(delayed(load_compute_save)(i,file_names,social_instance) 
-    for i in range(0, n_file, batch_size))
-    
-    merge_all_features()
-    end = time.time()
-    print(end-start)
+    # foldername = ['001','002', '003' ,  '004',  '005',  '006',  '007',  '008',  
+    # '009',  '010',  '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+    foldername = ['001','002', '003' ,  '004',  '005',  '006',  '007',  '008']
+    for idx in range(len(foldername)):
+        file_names = os.listdir(data_dir+'/'+foldername[idx])
+        data_subdir = data_dir+'/'+foldername[idx]
+        n_file = len(file_names)
+        social_instance = SocialFeaturesUtils()
+        
+        start = time.time()
+        
+        Parallel(n_jobs=-9)(delayed(load_compute_save)(i,file_names,social_instance,data_subdir) 
+        for i in range(0, n_file, batch_size))
+        
+        merge_all_features(idx)
+        end = time.time()
+        print(end-start)
     
 
 #    df = pd.read_pickle('../forecasting_sample/all_feature/features_'+mode+'.pkl')
