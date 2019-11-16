@@ -51,6 +51,8 @@ def normalize_trajectory(dataframe):
     translation = []
     rotation = []
 
+    normalized_traj=[]
+    features_data = dataframe.values
     x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
     y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
 
@@ -418,14 +420,14 @@ class Dataset_Loader(Dataset):
 
 def main():
     #Directories
-    train_dir = 'features/forecasting_features_val.pkl'
-    val_dir = 'features/forecasting_features_val.pkl'
+    train_dir = '../data/train/data/data_pickle/features_train_0.pkl'
+    val_dir = '../data/train/data/data_pickle/features_train_1.pkl'
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
     batch_size = 64
     lr = 0.001
-    num_epochs = 20000
+    num_epochs = 200
     epoch = 0
 
     args = parser.parse_args()
