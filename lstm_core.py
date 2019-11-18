@@ -316,8 +316,8 @@ def validate(val_loader, epoch, loss_function, logger,
         loss = loss/output_size
         loss_list.append(loss)
 
-        dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().numpy())**2/sample_size)
-        ade = np.sqrt(np.linalg.norm((decoder_outputs-target).detach().numpy())**2/output_size/sample_size)
+        dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().cpu().clone().numpy())**2/sample_size)
+        ade = np.sqrt(np.linalg.norm((decoder_outputs-target).detach().cpu().clone().numpy())**2/output_size/sample_size)
         dis_list.append(dis)
         ADE_list.append(ade)
 
