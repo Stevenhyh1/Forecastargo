@@ -13,10 +13,8 @@ from torch import nn
 from torch.optim import Adam
 from typing import Tuple, Any, Dict
 from torch.utils.data import Dataset, DataLoader
-from shapely.geometry import Point, Polygon, LineString, LinearRing
-from shapely.affinity import affine_transform, rotate
-from argoverse.evaluation.eval_forecasting import compute_forecasting_metrics
-from argoverse.utils.forecasting_evaluation import evaluate_prediction
+# from shapely.geometry import Point, Polygon, LineString, LinearRing
+# from shapely.affinity import affine_transform, rotate
 
 from baseline_config import (
     BASELINE_INPUT_FEATURES,
@@ -46,59 +44,59 @@ best_loss = float("inf")
 
 
 #Define utility function
-def normalize_trajectory(dataframe):
-    observe_len = 20
-    translation = []
-    rotation = []
+# def normalize_trajectory(dataframe):
+#     observe_len = 20
+#     translation = []
+#     rotation = []
 
-    normalized_traj=[]
-    features_data = dataframe.values
-    x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
-    y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
+#     normalized_traj=[]
+#     features_data = dataframe.values
+#     x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
+#     y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
 
-    num_samples  = x.shape[0]
+#     num_samples  = x.shape[0]
 
-    #Normalize the trajectory for each sample
-    for i in range(num_samples):
-        #In each sample
-        xy_tuple = np.stack((x[i],y[i]), axis = 1) #shape [50,2]
-        traj = LineString(xy_tuple)
-        start = traj[0] #shape [2,]
+#     #Normalize the trajectory for each sample
+#     for i in range(num_samples):
+#         #In each sample
+#         xy_tuple = np.stack((x[i],y[i]), axis = 1) #shape [50,2]
+#         traj = LineString(xy_tuple)
+#         start = traj[0] #shape [2,]
 
-        #Translation normalization: start with (0.0, 0.0)
-        #[a, b, c, d, x, y] is the planner transformation matrix[a, b, x; c, d, y; 0, 0, 1]
-        g = [1, 0, 0, 1, -start[0], -start[1]]
-        traj_trans = affine_transform(traj, g)
+#         #Translation normalization: start with (0.0, 0.0)
+#         #[a, b, c, d, x, y] is the planner transformation matrix[a, b, x; c, d, y; 0, 0, 1]
+#         g = [1, 0, 0, 1, -start[0], -start[1]]
+#         traj_trans = affine_transform(traj, g)
         
-        #Rotation normalization: 
-        end = traj_trans.coords[observe_len-1]
-        if end[0]==0 and end[1]==0:
-            angle = 0.0
-        elif end[0]==0:
-            angle = 90.0 if end[1]<0 else -90.0
-        elif end[1]==0:
-            angle = 0.0 if end[0]>0 else 180.0
-        else:
-            angle = math.degrees(math.atan(end[1]/end[0]))
-            if (end[0] > 0 and end[1] > 0) or (end[0] > 0 and end[1] < 0):
-                angle = -angle
-            else:
-                angle = 180.0 - angle
-        #Rotate normalization: end with y=0
-        traj_rotate = rotate(traj_trans, angle, origin=(0,0)).coords[:]
+#         #Rotation normalization: 
+#         end = traj_trans.coords[observe_len-1]
+#         if end[0]==0 and end[1]==0:
+#             angle = 0.0
+#         elif end[0]==0:
+#             angle = 90.0 if end[1]<0 else -90.0
+#         elif end[1]==0:
+#             angle = 0.0 if end[0]>0 else 180.0
+#         else:
+#             angle = math.degrees(math.atan(end[1]/end[0]))
+#             if (end[0] > 0 and end[1] > 0) or (end[0] > 0 and end[1] < 0):
+#                 angle = -angle
+#             else:
+#                 angle = 180.0 - angle
+#         #Rotate normalization: end with y=0
+#         traj_rotate = rotate(traj_trans, angle, origin=(0,0)).coords[:]
 
-        #Transform to numpy
-        traj_norm = np.array(traj_rotate)
+#         #Transform to numpy
+#         traj_norm = np.array(traj_rotate)
 
-        #Append to containers
-        translation.append(g)
-        rotation.append(angle)
-        normalized_traj.append(traj_norm)
+#         #Append to containers
+#         translation.append(g)
+#         rotation.append(angle)
+#         normalized_traj.append(traj_norm)
     
-    #update the dataframe and return normalized trajectory
-    dataframe["TRANSLATION"] = translation
-    dataframe["ROTATION"] = rotation
-    return np.stack(normalized_traj)
+#     #update the dataframe and return normalized trajectory
+#     dataframe["TRANSLATION"] = translation
+#     dataframe["ROTATION"] = rotation
+#     return np.stack(normalized_traj)
 
 
 #Load the Data
@@ -115,9 +113,13 @@ def load_and_preprocess(
     #norm_traj = normalize_trajectory(dataframe)
 
     #specify the desired inputs and outputs
-    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS"]
-    #input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
-    input_features_idx = [9,10,6,7,8]
+    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS",
+                           "MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", 
+                           "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
+                           "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
+                           "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
+    input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
+    # input_features_idx = [9,10,6,7,8]
     #load the features from dataframe
     input_features_data = features_data[:,:,input_features_idx].astype('float64') #shape: [5,50,5]
 
@@ -125,8 +127,8 @@ def load_and_preprocess(
     
     if mode == "train":
         output_feastures_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
-        #ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
-        ouput_features_idx = [9,10]
+        ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
+        # ouput_features_idx = [9,10]
         output_feastures_data = features_data[:,:,ouput_features_idx].astype('float64')
         _output = output_feastures_data[:,20:] #shape: [5,30,2]
     else:
@@ -142,9 +144,9 @@ def load_and_preprocess(
 #TODO Revise the Encoder
 class LSTMEncoder(nn.Module):
     def __init__(self, 
-                 input_size:int = 5,
-                 embedding_size:int = 8,
-                 hidden_size:int =  16):
+                 input_size:int = 12,
+                 embedding_size:int = 16,
+                 hidden_size:int =  32):
         super().__init__()
         self.hidden_size = hidden_size
         #torch.nn.Linear(in_features, out_features, bias=True)
@@ -160,8 +162,8 @@ class LSTMEncoder(nn.Module):
 #TODO Revise the Decoder
 class LSTMDecoder(nn.Module):
     def __init__(self,
-                 embedding_size=8,
-                 hidden_size=16,
+                 embedding_size=16,
+                 hidden_size=32,
                  output_size=2):
         super().__init__()
         self.hidden_size = hidden_size
@@ -179,6 +181,7 @@ class LSTMDecoder(nn.Module):
 def train(train_loader, epoch ,loss_function, logger,
           encoder, decoder, encoder_optimizer, decoder_optimizer,
 ):  
+    loss_list = []
     for batch_idx, (_input, target) in enumerate(train_loader):
         #print(batch_idx)
         _input = _input.to(device) #[5, 20, 5]
@@ -244,13 +247,14 @@ def train(train_loader, epoch ,loss_function, logger,
         
         #Normalize the loss
         loss = loss/output_size
+        loss_list.append(loss)
         #Backpropagation
         loss.backward()
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-    #print(f"Train -- Epoch:{epoch}, loss:{loss}")
-    return loss
+    train_loss = sum(loss_list)/len(loss_list)
+    return train_loss
 
 #TODO Define the validation network
 def validate(val_loader, epoch, loss_function, logger,
@@ -260,6 +264,7 @@ def validate(val_loader, epoch, loss_function, logger,
     global best_loss
     loss_list = []
     dis_list = []
+    ADE_list = []
 
     for i, (_input, target) in enumerate(val_loader):
 
@@ -312,11 +317,14 @@ def validate(val_loader, epoch, loss_function, logger,
         loss_list.append(loss)
 
         dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().numpy())**2/sample_size)
+        ade = np.sqrt(np.linalg.norm((decoder_outputs-target).detach().numpy())**2/output_size/sample_size)
         dis_list.append(dis)
+        ADE_list.append(ade)
 
     #Average the loss (for all batches)
     val_loss = sum(loss_list)/len(loss_list)
-    avg_dis = sum(dis_list)/len(dis_list)
+    FDE = sum(dis_list)/len(dis_list)
+    ADE = sum(ADE_list)/len(ADE_list)
 
     if val_loss <= best_loss:
         best_loss = val_loss
@@ -335,7 +343,7 @@ def validate(val_loader, epoch, loss_function, logger,
             }
         torch.save(state, filename)
     
-    return val_loss, avg_dis
+    return val_loss, FDE, ADE
 
 
 
@@ -420,8 +428,8 @@ class Dataset_Loader(Dataset):
 
 def main():
     #Directories
-    train_dir = '../data/train/data/data_pickle/features_train_0.pkl'
-    val_dir = '../data/train/data/data_pickle/features_train_1.pkl'
+    train_dir = '/home/yihe/data/feature/features_train.pkl'
+    val_dir = '/home/yihe/data/feature/features_val.pkl'
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
@@ -444,7 +452,7 @@ def main():
 
     #Get the model
     loss_function = nn.MSELoss()
-    encoder = LSTMEncoder(input_size=5)
+    encoder = LSTMEncoder(input_size=12)
     decoder = LSTMDecoder(output_size=2)
     encoder.to(device)
     decoder.to(device)
@@ -503,15 +511,15 @@ def main():
         )
         end = time.time()
 
-        if epoch % 100==0:
+        if epoch % 1==0:
             print(
                 f"Epoch: {epoch} completed in: {end-start}s, Total time: {(end - global_start_time) /60.0} mins, loss is: {loss}"
             )
 
         epoch+=1
-        if epoch % 500==0:
+        if epoch % 10==0:
             val_start_time = time.time()
-            model_loss, avg_dis = validate(
+            model_loss, FDE, ADE = validate(
                 val_loader,
                 epoch,
                 loss_function,
@@ -524,7 +532,7 @@ def main():
             )
             val_end_time = time.time()
             print(
-                f"Validation loss: {model_loss}, Average distance: {avg_dis}, Total time: {(val_end_time-global_start_time)/60.0} mins"
+                f"Validation loss: {model_loss}, FDE: {FDE}, ADE: {ADE}, Total time: {(val_end_time-global_start_time)/60.0} mins"
             )
 
 if __name__ == "__main__":
