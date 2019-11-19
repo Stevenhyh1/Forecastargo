@@ -21,6 +21,19 @@ FEATURE_FORMAT = {
     "ANGLE_W_CL": 17,
 }
 
+CLASS_FEATURE_FORMAT = {
+    "TIMESTAMP": 0,
+    "TRACK_ID": 1,
+    "OBJECT_TYPE": 2,
+    "X": 3,
+    "Y": 4,
+    "CITY_NAME": 5,
+    "DELTA_X": 6,
+    "DELTA_Y": 7,
+    "RELATIVE_ROT_ANGLE": 8,
+    "DELTA_ANGLE_HISTOGRAM": (9,10,11),
+}
+
 RAW_DATA_FORMAT = {
     "TIMESTAMP": 0,
     "TRACK_ID": 1,
