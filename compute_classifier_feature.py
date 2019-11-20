@@ -10,7 +10,7 @@ from argoverse.map_representation.map_api import ArgoverseMap
 #    get_nt_distance,
 #    get_oracle_from_candidate_centerlines
 #)
-#from our_social_features import SocialFeaturesUtils
+from our_class_features import compute_class_features
 import os
 import time
 from joblib import Parallel, delayed
@@ -168,7 +168,7 @@ def load_compute_save (idx, file_names):
         df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
         agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
         
-        features = []
+        features = compute_class_features(df,agent_track,obs_len,obs_len+pred_len,RAW_DATA_FORMAT)
         
         best_str, best_turn = compute_best_candidates(
             agent_track,
