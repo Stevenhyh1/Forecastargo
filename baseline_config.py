@@ -22,16 +22,10 @@ FEATURE_FORMAT = {
 }
 
 CLASS_FEATURE_FORMAT = {
-    "TIMESTAMP": 0,
-    "TRACK_ID": 1,
-    "OBJECT_TYPE": 2,
-    "X": 3,
-    "Y": 4,
-    "CITY_NAME": 5,
-    "DELTA_X": 6,
-    "DELTA_Y": 7,
-    "RELATIVE_ROT_ANGLE": 8,
-    "DELTA_ANGLE_HISTOGRAM": (9,10,11),
+    "DELTA_X": 0,
+    "DELTA_Y": 1,
+    "RELATIVE_ROT_ANGLE": 2,
+    "DELTA_ANGLE_HISTOGRAM": (3,4,5),
 }
 
 RAW_DATA_FORMAT = {
