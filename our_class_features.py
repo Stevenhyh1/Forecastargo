@@ -34,16 +34,21 @@ def compute_rotation_angle(coords: np.ndarray):
 
 def compute_histogram(angle: np.ndarray,d_coords: np.ndarray):
     
-    thres = np.pi/40
-    hist = np.zeros((len(angle),3))
+    thres1 = np.pi/20
+    thres2 = np.pi/40
+    hist = np.zeros((len(angle),5))
     for i in range(len(angle)):
         hist[i,:] = hist[i-1,:]
-        if angle[i] < -thres:
+        if angle[i] < -thres1:
             hist[i,0] += np.linalg.norm(d_coords[i,:])
-        elif angle[i] < thres:
+        elif angle[i] < -thres2:
             hist[i,1] += np.linalg.norm(d_coords[i,:])
-        else:
+        elif angle[i] < thres2:
             hist[i,2] += np.linalg.norm(d_coords[i,:])
+        elif angle[i] < thres1:
+            hist[i,3] += np.linalg.norm(d_coords[i,:])
+        else:
+            hist[i,4] += np.linalg.norm(d_coords[i,:])
             
     return hist
 
@@ -62,7 +67,7 @@ def compute_class_features(
         seq_len (int): Length of the sequence
         raw_data_format (Dict): Format of the sequence
     Returns:
-        features (numpy array): 20 x 6
+        features (numpy array): 20 x 8
 
     """
     agent_t = np.unique(np.sort(df['TIMESTAMP'].values))
@@ -85,23 +90,28 @@ def compute_class_features(
     return features
 
 #if __name__ == "__main__":
-##    file_names = os.listdir("../train/data")
-##    np.random.shuffle(file_names)
-##    file_names = file_names[:10]
-#    file_names = os.listdir('../forecasting_sample/data')
+#    file_names = os.listdir("../train/data")
+#    np.random.shuffle(file_names)
+#    file_names = file_names[:10]
+##    file_names = os.listdir('../forecasting_sample/data')
 #    n_file = len(file_names)
 #    
 ##    start = time.time()
 #    xy_data = np.empty((n_file,50,2))
 #    for i in range(n_file):
-#        file_path = "../forecasting_sample/data/"+file_names[i]
+#        file_path = "../train/data/"+file_names[i]
 ##        file_path = file_names
 #        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
 #        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
 #        features = compute_class_features(df,agent_track,20,50,RAW_DATA_FORMAT)
 #        xy_data[i,:,:] = agent_track[:,(RAW_DATA_FORMAT["X"],RAW_DATA_FORMAT["Y"])]
+#        plt.figure()
+#        plt.plot(xy_data[i,:,0],xy_data[i,:,1])
+#        plt.plot(xy_data[i,:20,0],xy_data[i,:20,1])
+#        plt.axis('equal')
 #        print(i)
-#        print('hist',features[:,3:])
+##        print('hist',features[-1,3:])
+#        print('Angle',features[-1,2])
 #
 #    
 ##    end = time.time()
