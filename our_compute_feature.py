@@ -70,6 +70,9 @@ def compute_map_features(
     oracle_nt_dist = get_nt_distance(xy,
                                      oracle_centerline,
                                      viz=False)
+    
+    oracle_nt_dist_norm = oracle_nt_dist - oracle_nt_dist[0,:]
+    
     delta_ref = copy.deepcopy(oracle_nt_dist[0,:])
     for i in range(xy.shape[0]-1,0,-1):
         oracle_nt_dist[i,:] = oracle_nt_dist[i,:]-oracle_nt_dist[i-1,:]
@@ -80,7 +83,7 @@ def compute_map_features(
     angle_w_cl[0,:] = angle_w_cl[1,:]
 #    angle_w_cl[np.isnan(angle_w_cl)] = np.pi/2
     
-    map_features = np.concatenate((oracle_nt_dist,angle_w_cl), axis=1)
+    map_features = np.concatenate((oracle_nt_dist_norm,angle_w_cl), axis=1)
     
     if mode=="test":
         map_features = np.concatenate(
