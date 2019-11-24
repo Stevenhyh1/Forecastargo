@@ -139,6 +139,8 @@ def compute_best_candidates(
     cl_str = []
     cl_turn = []
     for cl in candidate_centerlines:
+        if cl.shape[0] <= 10:
+            continue
         straight = is_straight(cl)
         if straight==1:
             cl_str.append(cl)
