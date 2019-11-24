@@ -22,11 +22,12 @@ from baseline_config import (
 obs_len = 20
 pred_len = 30
 
-foldername = ['007',  '008', '009',  '010',  '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+# foldername = ['001',  '002', '003',  '004',  '005']
+foldername = ['013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 # following must be changed according to situation !!!!!!!!!
 data_dir = "../data/train/data"
 batch_feature_dir = "../data/train/data"
-feature_dir = "../data/train/data/data_pickle"
+# feature_dir = "../data/train/data/data_pickle"
 
 batch_size = 100
 
@@ -130,7 +131,7 @@ def load_compute_save (idx, file_names, social_instance, data_subdir):
     print(f"finished computing index {idx} to {idx+batch_size-1}")
     sys.stdout.flush()
     
-def merge_all_features(idx):
+def merge_all_features(data_subdir):
     batch_files = os.listdir(batch_feature_dir)
     all_features = []
     for name in batch_files:
@@ -143,8 +144,8 @@ def merge_all_features(idx):
         os.remove(file_path)
 
     all_features_df = pd.concat(all_features, ignore_index=True)
-    print(f"Writing feature {foldername[idx]}")
-    all_features_df.to_pickle(f"{feature_dir}/features_{mode}_{foldername[idx]}.pkl")
+    print(f"Writing feature {data_subdir}")
+    all_features_df.to_pickle(f"{data_subdir}/features_{mode}_{data_subdir[-2:]}.pkl")
     print(f"Feature generated")
 
     
@@ -162,7 +163,7 @@ if __name__ == "__main__":
         Parallel(n_jobs=-9)(delayed(load_compute_save)(i,file_names,social_instance,data_subdir) 
         for i in range(0, n_file, batch_size))
         
-        merge_all_features(idx)
+        merge_all_features(data_subdir)
         end = time.time()
         print(end-start)
     
