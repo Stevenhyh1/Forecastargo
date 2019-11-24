@@ -33,7 +33,7 @@ data_dir = "../data/train/data"
 batch_feature_dir = "../data/train/data"
 feature_dir = "../data/train/data"
 
-batch_size = 3
+batch_size = 100
 
 mode = "train"
 ###################
@@ -210,8 +210,8 @@ def merge_all_features(data_subdir):
         os.remove(file_path)
 
     all_features_df = pd.concat(all_features, ignore_index=True)
-    print(f"Writing feature {foldername[idx+1]}")
-    all_features_df.to_pickle(f"{data_subdir}/classifier_feat_{mode}_{foldername[idx+1]}.pkl")
+    print(f"Writing feature to {data_subdir}")
+    all_features_df.to_pickle(f"{data_subdir}/classifier_feat_{mode}_{data_subdir[-2:]}.pkl")
     print(f"Feature generated")
     
 
