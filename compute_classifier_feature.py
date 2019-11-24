@@ -6,10 +6,10 @@ import copy
 
 from typing import Dict
 from argoverse.map_representation.map_api import ArgoverseMap
-#from argoverse.utils.centerline_utils import (
-#    get_nt_distance,
-#    get_oracle_from_candidate_centerlines
-#)
+from argoverse.utils.centerline_utils import (
+   get_nt_distance,
+   get_oracle_from_candidate_centerlines
+)
 from our_class_features import compute_class_features
 import os
 import time
@@ -28,13 +28,14 @@ obs_len = 20
 pred_len = 30
 
 # following must be changed according to situation !!!!!!!!!
-data_dir = "../forecasting_sample/data20"
-batch_feature_dir = "../forecasting_sample/feature"
-feature_dir = "../forecasting_sample/all_feature"
+foldername = ['001', '002', '003','004', '005', '006', '007',  '008', '009',  '010',  '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+data_dir = "../data/train/data"
+batch_feature_dir = "../data/train/data"
+feature_dir = "../data/train/data"
 
 batch_size = 3
 
-#mode = "test"
+mode = "train"
 ###################
 
 def normalize(line, end_idx):
@@ -159,12 +160,12 @@ def compute_best_candidates(
 
 
 
-def load_compute_save (idx, file_names):
+def load_compute_save (idx, file_names, data_subdir):
     data = []
     for name in file_names[idx:(idx+batch_size)]:
         if not name.endswith(".csv"):
             continue
-        file_path = data_dir+'/'+name
+        file_path = data_subdir+'/'+name
         df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
         agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
         
@@ -192,11 +193,11 @@ def load_compute_save (idx, file_names):
         "GT"
         ]
     )
-    data_df.to_pickle(f"{batch_feature_dir}/_{idx}_{idx+batch_size-1}.pkl")
+    data_df.to_pickle(f"{batch_feature_dir}/{mode}_{idx}_{idx+batch_size-1}.pkl")
     print(f"finished computing index {idx} to {idx+batch_size-1}")
     sys.stdout.flush()
     
-def merge_all_features():
+def merge_all_features(data_subdir):
     batch_files = os.listdir(batch_feature_dir)
     all_features = []
     for name in batch_files:
@@ -209,26 +210,29 @@ def merge_all_features():
         os.remove(file_path)
 
     all_features_df = pd.concat(all_features, ignore_index=True)
-
-    all_features_df.to_pickle(f"{feature_dir}/classifier_feat.pkl")
-
+    print(f"Writing feature {foldername[idx+1]}")
+    all_features_df.to_pickle(f"{data_subdir}/classifier_feat_{mode}_{foldername[idx+1]}.pkl")
+    print(f"Feature generated")
     
 
 if __name__ == "__main__":
-    file_names = os.listdir(data_dir)
-    n_file = len(file_names)
+    
+    for idx in range(len(foldername)):
+        file_names = os.listdir(data_dir+'/'+foldername[idx])
+        data_subdir = data_dir+'/'+foldername[idx]
+        n_file = len(file_names)
 
+        
+    #    social_instance = SocialFeaturesUtils()
     
-#    social_instance = SocialFeaturesUtils()
-   
-    start = time.time()
-    
-    Parallel(n_jobs=-2)(delayed(load_compute_save)(i,file_names) 
-    for i in range(0, n_file, batch_size))
-    
-    merge_all_features()
-    end = time.time()
-    print(end-start)
+        start = time.time()
+        
+        Parallel(n_jobs=-9)(delayed(load_compute_save)(i,file_names,data_subdir) 
+        for i in range(0, n_file, batch_size))
+        
+        merge_all_features(data_subdir)
+        end = time.time()
+        print(end-start)
     
 #    df = pd.read_pickle('../forecasting_sample/all_feature/classifier_feat.pkl')
    
