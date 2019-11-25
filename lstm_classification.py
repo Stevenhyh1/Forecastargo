@@ -23,6 +23,7 @@ from utils.baseline_config import (
     BASELINE_INPUT_FEATURES,
     BASELINE_OUTPUT_FEATURES,
     FEATURE_FORMAT,
+    CLASS_FEATURE_FORMAT
 )
 
 #Input Arguments
@@ -45,7 +46,6 @@ else:
 #Global parameters
 best_loss = float("inf")
 
-
 #Define utility function
 def normalize_trajectory(dataframe):
     observe_len = 20
@@ -59,49 +59,6 @@ def normalize_trajectory(dataframe):
 
     num_samples  = x.shape[0]
 
-    #Normalize the trajectory for each sample
-    for i in range(num_samples):
-        #In each sample
-        xy_tuple = np.stack((x[i],y[i]), axis = 1) #shape [50,2]
-        traj = LineString(xy_tuple)
-        start = traj[0] #shape [2,]
-
-        #Translation normalization: start with (0.0, 0.0)
-        #[a, b, c, d, x, y] is the planner transformation matrix[a, b, x; c, d, y; 0, 0, 1]
-        g = [1, 0, 0, 1, -start[0], -start[1]]
-        traj_trans = affine_transform(traj, g)
-        
-        #Rotation normalization: 
-        end = traj_trans.coords[observe_len-1]
-        if end[0]==0 and end[1]==0:
-            angle = 0.0
-        elif end[0]==0:
-            angle = 90.0 if end[1]<0 else -90.0
-        elif end[1]==0:
-            angle = 0.0 if end[0]>0 else 180.0
-        else:
-            angle = math.degrees(math.atan(end[1]/end[0]))
-            if (end[0] > 0 and end[1] > 0) or (end[0] > 0 and end[1] < 0):
-                angle = -angle
-            else:
-                angle = 180.0 - angle
-        #Rotate normalization: end with y=0
-        traj_rotate = rotate(traj_trans, angle, origin=(0,0)).coords[:]
-
-        #Transform to numpy
-        traj_norm = np.array(traj_rotate)
-
-        #Append to containers
-        translation.append(g)
-        rotation.append(angle)
-        normalized_traj.append(traj_norm)
-    
-    #update the dataframe and return normalized trajectory
-    dataframe["TRANSLATION"] = translation
-    dataframe["ROTATION"] = rotation
-    return np.stack(normalized_traj)
-
-
 #Load the Data
 def load_and_preprocess(
     feature_file: str = "features/forecasting_features_val.pkl",
@@ -110,26 +67,22 @@ def load_and_preprocess(
 
     #load the data and save in dataframe
     dataframe = pd.read_pickle(feature_file)
-    features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,11]
-
-    #Normalize the trajectory (only for without map)
-    #norm_traj = normalize_trajectory(dataframe)
+    features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,8]
+    decision_data = np.stack(dataframe["GT"].values) #shape: [5,]
 
     #specify the desired inputs and outputs
-    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", "NUM_NEIGHBORS"]
-    input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
+    #TODO: change feature loaded
+    input_features_list = ["DELTA_X","DELTA_Y","RELATIVE_ROT_ANGLE"]
+    input_features_idx = [CLASS_FEATURE_FORMAT[feature] for feature in input_features_list]
     
     #load the features from dataframe
-    input_features_data = features_data[:,:,input_features_idx].astype('float64') #shape: [5,50,5]
+    input_features_data = features_data[:,:,input_features_idx].astype('float64') #shape: [5,50,8]
 
 
     _input = input_features_data[:,:20] #shape: [5,20,5]
     
     if mode == "train":
-        output_feastures_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
-        ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
-        output_feastures_data = features_data[:,:,ouput_features_idx].astype('float64')
-        _output = output_feastures_data[:,20:] #shape: [5,30,2]
+        _output = decision_data.astype(int) #shape: [5,30,2]
     else:
         _output = None
 
@@ -141,65 +94,56 @@ def load_and_preprocess(
     return data_dict
 
 #TODO Revise the Encoder
-class LSTMEncoder(nn.Module):
+class ClassRNN(nn.Module):
     def __init__(self, 
                  input_size:int = 5,
-                 embedding_size:int = 8,
-                 hidden_size:int =  16):
+                 embedded_size:int = 8,
+                 hidden_size:int =  32,
+                 output_size:int = 1,
+                 dropout:float = 0.5,
+                 n_layers:int = 3):
         super().__init__()
+        self.input_size = input_size
+        self.embedded_size = embedded_size
         self.hidden_size = hidden_size
-        #torch.nn.Linear(in_features, out_features, bias=True)
-        self.linear1 = nn.Linear(input_size, embedding_size,bias=True)
-        #torch.nn.LSTMCell(input_size, hidden_size, bias=True)
-        self.lstm1 = nn.LSTMCell(embedding_size,hidden_size,bias=True)
+        self.output_size = output_size
+        self.dropout = dropout
+        self.n_layers = n_layers
+        self.linear1 = nn.Linear(self.input_size, self.embedded_size)
+        self.rnn = nn.LSTM(self.embedded_size,
+                           self.hidden_size,
+                           num_layers = self.n_layers,
+                           dropout=self.dropout)
+        self.fc = nn.Linear(self.hidden_size,self.output_size)
+        self.dropout = nn.Dropout(self.dropout)
 
     def forward(self, x: torch.FloatTensor, hidden: Any):
         embedded = F.relu(self.linear1(x), inplace=False)
-        hidden = self.lstm1(embedded, hidden)
-        return hidden
+        output, (hn, cn) = self.rnn(embedded, hidden)
+        return self.fc(hn)
 
-#TODO Revise the Decoder
-class LSTMDecoder(nn.Module):
-    def __init__(self,
-                 embedding_size=8,
-                 hidden_size=16,
-                 output_size=2):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.linear1 = nn.Linear(output_size,embedding_size)
-        self.lstm1 = nn.LSTMCell(embedding_size,hidden_size)
-        self.linear2 = nn.Linear(hidden_size,output_size)
-    
-    def forward(self, x, hidden):
-        embedded = F.relu(self.linear1(x))
-        hidden = self.lstm1(embedded, hidden)
-        output = self.linear2(hidden[0])
-        return output, hidden
 
-#TODO Define training network
 def train(train_loader, epoch ,loss_function, logger,
-          encoder, decoder, encoder_optimizer, decoder_optimizer,
+          rnn, rnn_optimizer
 ):  
     for batch_idx, (_input, target) in enumerate(train_loader):
         #print(batch_idx)
         _input = _input.to(device) #[5, 20, 5]
-        target = target.to(device) #[5, 30, 2]
+        target = target.to(device) #[5, ]
         # print(_input[0])
         
-        #set encoder and decoder to train mode
-        encoder.train()
-        decoder.train()
+        #set rnn to train mode
+        rnn.train()
 
         #clear up the gradient for optimizer
-        encoder_optimizer.zero_grad()
-        decoder_optimizer.zero_grad()
+        rnn.zero_grad()
 
         #encoder arguments
         #Input Sample shape: [5,20,5]
-        #output sample shape: [5,30,2]
+        #output sample shape: [5,]
         sample_size = _input.shape[0]
         input_size = _input.shape[1]
-        output_size = target.shape[1]
+        output_size = 1
         #print(sample_size, input_size, output_size)
 
         #initialize the hidden state
@@ -212,131 +156,106 @@ def train(train_loader, epoch ,loss_function, logger,
         #         hx, cx = rnn(input[i], (hx, cx))
         #         output.append(hx)
 
-        hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
-        cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
-        encoder_hidden = (hx,cx)
+        hx = torch.zeros(sample_size, rnn.hidden_size).to(device)
+        cx = torch.zeros(sample_size, rnn.hidden_size).to(device)
+        rnn_hidden = (hx,cx)
 
         #Encoder observed trajectory
-        for encoder_idx in range(input_size):
-            encoder_input = _input[:, encoder_idx, :]
-            encoder_hidden = encoder(encoder_input, encoder_hidden)
-
-        #Initialize decoder input
-        decoder_input = encoder_input[:,:2]
-
-        #Initialize decoder hidden state as encoder hidden state
-        decoder_hidden = encoder_hidden
-
-        decoder_outputs = torch.zeros((sample_size, output_size, 2)).to(device)
-
-        #Initialize the losses
-        loss = 0
-
-        # Decode hidden state in future trajectory
-        for decoder_idx in range(output_size):
-            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
-            decoder_outputs[:, decoder_idx,:] = decoder_output
-
-            #Accumulate the loss
-            loss += loss_function(decoder_output[:, :2], target[:, decoder_idx, :2])
-
-            #use own prediction as the input for next step
-            decoder_input = decoder_output
+        predictions, (_,_) = rnn(_input, rnn_hidden)
         
         #Normalize the loss
-        loss = loss/output_size
+        loss = loss_function(predictions, target)
         #Backpropagation
         loss.backward()
-        encoder_optimizer.step()
-        decoder_optimizer.step()
+        rnn_optimizer.step()
 
         #print(f"Train -- Epoch:{epoch}, loss:{loss}")
         return loss
 
-#TODO Define the validation network
-def validate(val_loader, epoch, loss_function, logger,
-            encoder, decoder, encoder_optimizer, decoder_optimizer,
-            prev_loss
-):
-    global best_loss
-    loss_list = []
-    dis_list = []
+# #TODO Define the validation network
+# def validate(val_loader, epoch, loss_function, logger,
+#             encoder, decoder, encoder_optimizer, decoder_optimizer,
+#             prev_loss
+# ):
+#     global best_loss
+#     loss_list = []
+#     dis_list = []
 
-    for i, (_input, target) in enumerate(val_loader):
+#     for i, (_input, target) in enumerate(val_loader):
 
-        _input = _input.to(device)
-        target = target.to(device)
+#         _input = _input.to(device)
+#         target = target.to(device)
 
-        #set encoder and decoder to validation mode
-        encoder.eval()
-        decoder.eval() 
+#         #set encoder and decoder to validation mode
+#         encoder.eval()
+#         decoder.eval() 
 
-        #Define encoder arguments
-        sample_size = _input.shape[0]
-        input_size = _input.shape[1]
-        output_size = target.shape[1]
+#         #Define encoder arguments
+#         sample_size = _input.shape[0]
+#         input_size = _input.shape[1]
+#         output_size = target.shape[1]
 
-        #Initialize encoder hidden state
-        hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
-        cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
-        encoder_hidden = (hx,cx)
+#         #Initialize encoder hidden state
+#         hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+#         cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
+#         encoder_hidden = (hx,cx)
 
-        #Encoder observed trajectory
-        for encoder_idx in range(input_size):
-            encoder_input = _input[:, encoder_idx, :]
-            encoder_hidden = encoder(encoder_input, encoder_hidden)
+#         #Encoder observed trajectory
+#         for encoder_idx in range(input_size):
+#             encoder_input = _input[:, encoder_idx, :]
+#             encoder_hidden = encoder(encoder_input, encoder_hidden)
 
-        #Initialize decoder input
-        decoder_input = encoder_input[:,:2]
+#         #Initialize decoder input
+#         decoder_input = encoder_input[:,:2]
 
-        #Initialize decoder hidden state as encoder hidden state
-        decoder_hidden = encoder_hidden
+#         #Initialize decoder hidden state as encoder hidden state
+#         decoder_hidden = encoder_hidden
 
-        decoder_outputs = torch.zeros((sample_size, output_size, 2)).to(device)
+#         decoder_outputs = torch.zeros((sample_size, output_size, 2)).to(device)
 
-        #Initialize loss
-        loss = 0
+#         #Initialize loss
+#         loss = 0
 
-        # Decode hidden state in future trajectory
-        for decoder_idx in range(output_size):
-            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
-            decoder_outputs[:, decoder_idx,:] = decoder_output
+#         # Decode hidden state in future trajectory
+#         for decoder_idx in range(output_size):
+#             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+#             decoder_outputs[:, decoder_idx,:] = decoder_output
 
-            #Accumulate the loss
-            loss += loss_function(decoder_output[:, :2], target[:, decoder_idx, :2])
+#             #Accumulate the loss
+#             loss += loss_function(decoder_output[:, :2], target[:, decoder_idx, :2])
 
-            #use own prediction as the input for next step
-            decoder_input = decoder_output
+#             #use own prediction as the input for next step
+#             decoder_input = decoder_output
         
-        #Normalize the loss (in one batch)
-        loss = loss/output_size
-        loss_list.append(loss)
+#         #Normalize the loss (in one batch)
+#         loss = loss/output_size
+#         loss_list.append(loss)
 
-        dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().numpy())**2/sample_size)
-        dis_list.append(dis)
+#         dis = np.sqrt(np.linalg.norm((decoder_outputs[:,-1,:]-target[:,-1,:]).detach().numpy())**2/sample_size)
+#         dis_list.append(dis)
 
-    #Average the loss (for all batches)
-    val_loss = sum(loss_list)/len(loss_list)
-    avg_dis = sum(dis_list)/len(dis_list)
+#     #Average the loss (for all batches)
+#     val_loss = sum(loss_list)/len(loss_list)
+#     avg_dis = sum(dis_list)/len(dis_list)
 
-    if val_loss <= best_loss:
-        best_loss = val_loss
+#     if val_loss <= best_loss:
+#         best_loss = val_loss
         
-        save_dir = 'models'
-        os.makedirs(save_dir,exist_ok=True)
-        filename = "{}/LSTM.pth.tar".format(save_dir)
+#         save_dir = 'models'
+#         os.makedirs(save_dir,exist_ok=True)
+#         filename = "{}/LSTM.pth.tar".format(save_dir)
 
-        state = {
-                "epoch": epoch + 1,
-                "encoder_state_dict": encoder.state_dict(),
-                "decoder_state_dict": decoder.state_dict(),
-                "best_loss": val_loss,
-                "encoder_optimizer": encoder_optimizer.state_dict(),
-                "decoder_optimizer": decoder_optimizer.state_dict(),
-            }
-        torch.save(state, filename)
+#         state = {
+#                 "epoch": epoch + 1,
+#                 "encoder_state_dict": encoder.state_dict(),
+#                 "decoder_state_dict": decoder.state_dict(),
+#                 "best_loss": val_loss,
+#                 "encoder_optimizer": encoder_optimizer.state_dict(),
+#                 "decoder_optimizer": decoder_optimizer.state_dict(),
+#             }
+#         torch.save(state, filename)
     
-    return val_loss, avg_dis
+#     return val_loss, avg_dis
 
 
 
@@ -379,44 +298,7 @@ class Dataset_Loader(Dataset):
             torch.FloatTensor(self.input_data[idx]),
             torch.empty(1) if self.mode == "test" else torch.FloatTensor(
                 self.output_data[idx]),
-            # self.datatuple[idx],
         )
-
-    def getitem_helpers(self) -> Tuple[Any]:
-
-        helper_df = self.data_dict["dataframe"]
-        candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
-        candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
-        xcoord = np.stack(helper_df["FEATURES"].values
-                          )[:, :, config.FEATURE_FORMAT["X"]].astype("float")
-        ycoord = np.stack(helper_df["FEATURES"].values
-                          )[:, :, config.FEATURE_FORMAT["Y"]].astype("float")
-        centroids = np.stack((xcoord, ycoord), axis=2)
-        _DEFAULT_HELPER_VALUE = np.full((centroids.shape[0]), None)
-        city_names = np.stack(helper_df["FEATURES"].values
-                              )[:, :, config.FEATURE_FORMAT["CITY_NAME"]]
-    #     seq_paths = helper_df["SEQUENCE"].values
-        translation = (helper_df["TRANSLATION"].values
-                       if self.normalize else _DEFAULT_HELPER_VALUE)
-        rotation = (helper_df["ROTATION"].values
-                    if self.normalize else _DEFAULT_HELPER_VALUE)
-
-    #     use_candidates = self.use_map and self.mode == "test"
-
-    #     candidate_delta_references = (
-    #         helper_df["CANDIDATE_DELTA_REFERENCES"].values
-    #         if self.use_map and use_candidates else _DEFAULT_HELPER_VALUE)
-    #     delta_reference = (helper_df["DELTA_REFERENCE"].values
-    #                        if self.use_delta and not use_candidates else
-    #                        _DEFAULT_HELPER_VALUE)
-
-    #     helpers = [None for i in range(len(config.LSTM_HELPER_DICT_IDX))]
-
-    #     # Name of the variables should be the same as keys in LSTM_HELPER_DICT_IDX
-    #     for k, v in config.LSTM_HELPER_DICT_IDX.items():
-    #         helpers[v] = locals()[k.lower()]
-
-    #     return tuple(helpers)
    
 
 def main():
