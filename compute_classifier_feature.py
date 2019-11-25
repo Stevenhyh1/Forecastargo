@@ -147,6 +147,13 @@ def compute_best_candidates(
         else:
             cl_turn.append(cl)
     
+    if len(cl_str)+len(cl_turn)==0:
+        idx_list = np.random.randint(len(candidate_centerlines),size=2)
+        best_str = idx_list[0]
+        best_turn = idx_list[1]
+        
+        return best_str, best_turn
+    
     if len(cl_str)!=0:
         best_str = get_oracle_from_candidate_centerlines(cl_str, xy)
     
@@ -249,11 +256,11 @@ if __name__ == "__main__":
 #        print(gt)
 #        break
 #    
-    
-#    file_path = '../forecasting_sample/data100/'+file_names[0]
+#    file_names = os.listdir('../forecasting_sample/data')
+#    file_path = '../forecasting_sample/data/'+file_names[4]
 #    df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
 #    agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-
+#
 #    best_str, best_turn = compute_best_candidates(
 #        agent_track,
 #        obs_len,
