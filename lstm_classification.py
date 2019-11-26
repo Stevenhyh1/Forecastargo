@@ -1,23 +1,15 @@
 import os
 import time
-import math
-import argparse
 import torch
 import joblib
 import pandas as pd
 import numpy as np
-import baseline_config as config
-import torch.nn.functional as F
 import torch
 from torch import nn
 from torch.optim import Adam
-from typing import Tuple, Any, Dict
-from torch.utils.data import Dataset, DataLoader, TensorDataset
+from torch.utils.data import Dataset, DataLoader
 
 from baseline_config import (
-    BASELINE_INPUT_FEATURES,
-    BASELINE_OUTPUT_FEATURES,
-    FEATURE_FORMAT,
     CLASS_FEATURE_FORMAT
 )
 
@@ -36,7 +28,6 @@ def load_and_preprocess(
     feature_file: str,
     mode: str = "train",
 ): 
-
     #load the data and save in dataframe
     dataframe = pd.read_pickle(feature_file)
     features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,8]
@@ -45,7 +36,7 @@ def load_and_preprocess(
     #load the features from dataframe
     input_features_data = features_data.astype(float)
     _input = input_features_data[:,:20] #shape: [5,20,8]
-    _output = decision_data.astype(int) #shape: [5,30,2]
+    _output = decision_data.astype(int) #shape: [5,]
 
 
     data_dict = {
@@ -88,11 +79,9 @@ class ClassRNN(nn.Module):
 def train(train_loader, epoch ,loss_function, rnn, rnn_optimizer,n_layers, batch_size):  
     loss_list = []
     for i, (_input, target) in enumerate(train_loader):
-        print(i)
-        _input = _input.to(device) #[5, 20, 8]
-        target = target.to(device) #[5, ]
-        # print(_input.shape)
-        print(target.shape)
+
+        _input = _input.to(device) #torch.Size([5, 20, 8])
+        target = target.to(device) #torch.Size([1])
         
         #set rnn to train mode
         rnn.train()
@@ -102,7 +91,6 @@ def train(train_loader, epoch ,loss_function, rnn, rnn_optimizer,n_layers, batch
 
         #Encoder observed trajectory
         predictions = rnn(_input)
-        print(predictions.shape)
         
         #Normalize the loss
         loss = loss_function(predictions, target)
@@ -115,9 +103,7 @@ def train(train_loader, epoch ,loss_function, rnn, rnn_optimizer,n_layers, batch
     train_loss = sum(loss_list)/len(loss_list)
     return train_loss
 
-# Pytorch utiliites
 
-#TODO Correct the dataset loader
 class Dataset_Loader(Dataset):
     """Pytorch map-style dataset"""
     def __init__(self, data_dict, mode):
@@ -155,7 +141,7 @@ def main():
     test_dir = "data/test_obs/data"
     
     #Hyperparameters
-    batch_size = 1
+    batch_size = 4
     lr = 0.001
     num_epochs = 10
     epoch = 0
@@ -173,8 +159,6 @@ def main():
     val_dict = load_and_preprocess(val_dir)
     data_input = data_dict["input"]
     data_output = data_dict["output"]
-    print(data_input.shape)
-    print(data_output)
 
     #Get the model
     rnn = ClassRNN(input_dim, hidden_dim, layer_dim, output_dim)
