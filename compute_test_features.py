@@ -38,11 +38,7 @@ batch_feature_dir = "../data/train/data"
 classifier_model_dir = "models/Classifier.pth.tar"
 
 batch_size = 100
-# rnn model parameters
-input_dim = 8
-hidden_dim = 32
-layer_dim = 3
-output_dim = 2
+
 mode = "test"
 ###################
 
@@ -178,7 +174,7 @@ def merge_all_features(data_subdir):
 if __name__ == "__main__":
     
     rnn_model = torch.load(classifier_model_dir,map_location=torch.device('cpu'))
-    rnn = ClassRNN(input_dim, hidden_dim, layer_dim, output_dim)
+    rnn = ClassRNN()
     rnn.load_state_dict(rnn_model["rnn_state_dict"])
     rnn.eval()
     

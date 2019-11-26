@@ -248,8 +248,8 @@ if __name__ == "__main__":
     
     
     # load best model
-    encoder = LSTMEncoder(input_size=12)
-    decoder = LSTMDecoder(output_size=2)
+    encoder = LSTMEncoder()
+    decoder = LSTMDecoder()
     
     encoder.load_state_dict(model['encoder_state_dict'])
     encoder.eval()
