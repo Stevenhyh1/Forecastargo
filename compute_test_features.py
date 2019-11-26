@@ -32,8 +32,8 @@ pred_len = 30
 # foldername = ['001',  '002', '003',  '004',  '005']
 foldername = ['013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 # following must be changed according to situation !!!!!!!!!
-data_dir = "../data/train/data"
-batch_feature_dir = "../data/train/data"
+data_dir = "../train/data"
+batch_feature_dir = "../train/data"
 # feature_dir = "../data/train/data/data_pickle"
 classifier_model_dir = "models/Classifier.pth.tar"
 
@@ -143,7 +143,7 @@ def load_compute_save (idx, file_names, social_instance, rnn, data_subdir):
     columns=[
         "ID",
         "FEATURES",
-        "ORACLE_CENTERLINE",
+        "ORACLE_CENTERLINES",
         "SECOND_CENTERLINE",
         "DELTA_REFERENCE"
         ]
@@ -208,7 +208,7 @@ if __name__ == "__main__":
 #    end = time.time()
 #    print(end-start)
 #
-#    df = pd.read_pickle('../test_obs/data/features_test_ta.pkl')
+#    df = pd.read_pickle('../train/data/features_test_ta.pkl')
 #    feat = np.stack(df["FEATURES"].values)
 #    ang = feat[0,:,17]
 #    
