@@ -22,6 +22,10 @@ else:
 
 #Global parameters
 best_loss = float("inf")
+#Directories
+train_dir = 'features/classfeatuer/features_class.pkl'
+val_dir = 'features/classfeatuer/features_class.pkl'
+save_dir = 'models'
 
 #Load the Data
 def load_and_preprocess(
@@ -42,67 +46,8 @@ def load_and_preprocess(
     data_dict = {
         "input": _input,
         "output": _output,
-    }
-    
+    }  
     return data_dict
-
-class ClassRNN(nn.Module):
-    def __init__(self, 
-                 input_dim:int = 8, 
-                 hidden_dim:int = 32, 
-                 layer_dim:int = 3, 
-                 output_dim:int = 2):
-        super(ClassRNN, self).__init__()
-
-        self.hidden_dim = hidden_dim
-        self.layer_dim = layer_dim
-        # Building LSTM
-        # batch_first=True causes input/output tensors to be of shape
-        # (batch_dim, seq_dim, feature_dim)
-        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        # Initialize hidden state with zeros
-        h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
-        c0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
-        # 28 time steps
-        # We need to detach as we are doing truncated backpropagation through time (BPTT)
-        # If we don't, we'll backprop all the way to the start even after going through another batch
-        out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
-
-        # just want last time step output 
-        out = self.fc(out[:, -1, :])
-        return out
-
-
-def train(train_loader, epoch ,loss_function, rnn, rnn_optimizer,n_layers, batch_size):  
-    loss_list = []
-    for i, (_input, target) in enumerate(train_loader):
-
-        _input = _input.to(device) #torch.Size([5, 20, 8])
-        target = target.to(device) #torch.Size([1])
-        
-        #set rnn to train mode
-        rnn.train()
-
-        #clear up the gradient for optimizer
-        rnn_optimizer.zero_grad()
-
-        #Encoder observed trajectory
-        predictions = rnn(_input)
-        
-        #Normalize the loss
-        loss = loss_function(predictions, target)
-        loss_list.append(loss)
-        #Backpropagation
-        loss.backward()
-        rnn_optimizer.step()
-
-        #print(f"Train -- Epoch:{epoch}, loss:{loss}")
-    train_loss = sum(loss_list)/len(loss_list)
-    return train_loss
-
 
 class Dataset_Loader(Dataset):
     """Pytorch map-style dataset"""
@@ -132,16 +77,105 @@ class Dataset_Loader(Dataset):
             torch.FloatTensor(self.input_data[idx]),
             self.output_data[idx]
         )
+
+class ClassRNN(nn.Module):
+    def __init__(self, 
+                 input_dim:int = 8, 
+                 hidden_dim:int = 32, 
+                 layer_dim:int = 3, 
+                 output_dim:int = 2):
+        super(ClassRNN, self).__init__()
+
+        self.hidden_dim = hidden_dim
+        self.layer_dim = layer_dim
+        # Building LSTM
+        # batch_first=True causes input/output tensors to be of shape
+        # (batch_dim, seq_dim, feature_dim)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        # Initialize hidden state with zeros
+        h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
+        c0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
+        out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
+        # just want last time step output 
+        out = self.fc(out[:, -1, :])
+        return out
+
+
+def train(train_loader, rnn, optimizer, criterion): 
+    loss_list = []
+    for _input, target in train_loader:
+
+        _input = _input.to(device) #torch.Size([5, 20, 8])
+        target = target.to(device) #torch.Size([1])
+        
+        #set rnn to train mode
+        rnn.train()
+
+        #clear up the gradient for optimizer
+        optimizer.zero_grad()
+
+        #Encoder observed trajectory
+        predictions = rnn(_input)
+        
+        #Normalize the loss
+        loss = criterion(predictions, target)
+        loss_list.append(loss)
+        #Backpropagation
+        loss.backward()
+        optimizer.step()
+
+    train_loss = sum(loss_list)/len(loss_list)
+    return train_loss
+
+def validate(val_loader, epoch, rnn, optimizer, criterion):
+    global best_loss
+    loss_list = []
+    acc_list = []
+    for _input, target in val_loader:
+
+        _input = _input.to(device) #torch.Size([5, 20, 8])
+        target = target.to(device) #torch.Size([1])
+        
+        #Set rnn to train mode
+        rnn.train()
+
+        #Encode observed trajectory
+        predictions = rnn(_input)
+        _, pred_label = torch.max(predictions.data, 1)
+        
+        #Normalize the loss
+        loss = criterion(predictions, target)
+        loss_list.append(loss)
+        acc_list.append((pred_label==target).int().numpy().sum())
+
+    val_loss = sum(loss_list)/len(loss_list)
+    acc = sum(acc_list)/len(acc_list)
+    if val_loss < best_loss:
+        best_loss = val_loss
+
+        os.makedirs(save_dir,exist_ok=True)
+        filename = "{}/Classifier.pth.tar".format(save_dir)
+
+        state = {
+                "epoch": epoch + 1,
+                "rnn_state_dict": rnn.state_dict(),
+                "best_loss": val_loss,
+                "optimizer": optimizer.state_dict(),
+            }
+        torch.save(state, filename)
+
+    return val_loss, acc
    
 
 def main():
-    #Directories
-    train_dir = 'features/classfeatuer/features_class.pkl'
-    val_dir = 'features/classfeatuer/features_class.pkl'
-    test_dir = "data/test_obs/data"
-    
+    '''
+    STEP 0: PARAMETERS
+    '''
     #Hyperparameters
-    batch_size = 4
+    batch_size = 2
     lr = 0.001
     num_epochs = 10
     epoch = 0
@@ -154,26 +188,21 @@ def main():
     if cuda:
         print(f"Using all ({torch.cuda.device_count()}) GPUs...")
 
+
+    '''
+    STEP 1: LOADING DATASET
+    '''
     #Get the data, in dictionary format
     data_dict = load_and_preprocess(train_dir)
     val_dict = load_and_preprocess(val_dir)
-    data_input = data_dict["input"]
-    data_output = data_dict["output"]
 
-    #Get the model
-    rnn = ClassRNN(input_dim, hidden_dim, layer_dim, output_dim)
-    rnn.to(device)
 
-    loss_function = nn.CrossEntropyLoss()
-    rnn_optimizer = Adam(rnn.parameters(), lr = lr)
-
-    #Training
+    '''
+    STEP 2: MAKING MAP-STYLE DATASETS
+    '''
     #Transform data to Pytorch Dataset format
     train_dataset = Dataset_Loader(data_dict, "train")
     val_dataset = Dataset_Loader(val_dict, "val")
-    
-    # print(train_dataset[0][0].shape) #shape: torch.size([20, 8])
-    # print(train_dataset[0][1].shape) #shape: torch.size([1])
 
     #Setting Dataloader
     train_loader = DataLoader(
@@ -183,21 +212,39 @@ def main():
         shuffle = False,
     )
 
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size = 1,
+        drop_last = False,
+        shuffle = False,
+    )
+
+    '''
+    STEP 3: INITIALIZE THE MODEL
+    '''
+    #Get the model
+    rnn = ClassRNN(input_dim, hidden_dim, layer_dim, output_dim)
+    rnn.to(device)
+
+    #Loss Functions
+    loss_function = nn.CrossEntropyLoss()
+
+    #Optimizer
+    rnn_optimizer = Adam(rnn.parameters(), lr = lr)
+
+    '''
+    STEP 4: TRAIN THE MODEL
+    '''
     print("Training begins ...")
     
     global_start_time = time.time()
-    best_loss = float("inf")
-    prev_loss = best_loss
     while epoch < num_epochs:
         start = time.time()
         loss = train(
             train_loader,
-            epoch,
-            loss_function,
             rnn,
             rnn_optimizer,
-            layer_dim,
-            batch_size
+            loss_function
         )
         end = time.time()
 
@@ -208,23 +255,19 @@ def main():
 
         epoch+=1
 
-    #     if epoch % 500==0:
-    #         val_start_time = time.time()
-    #         model_loss, avg_dis = validate(
-    #             val_loader,
-    #             epoch,
-    #             loss_function,
-    #             logger,
-    #             encoder,
-    #             decoder,
-    #             encoder_optimizer,
-    #             decoder_optimizer,
-    #             prev_loss,
-    #         )
-    #         val_end_time = time.time()
-    #         print(
-    #             f"Validation loss: {model_loss}, Average distance: {avg_dis}, Total time: {(val_end_time-global_start_time)/60.0} mins"
-    #         )
+        if epoch % 5==0:
+            val_start_time = time.time()
+            model_loss, acc = validate(
+                val_loader, 
+                epoch, 
+                rnn, 
+                rnn_optimizer, 
+                loss_function 
+            )
+            val_end_time = time.time()
+            print(
+                f"Validation loss: {model_loss}, Accuracy: {acc}, Total time: {(val_end_time-global_start_time)/60.0} mins"
+            )
 
 if __name__ == "__main__":
     main()
