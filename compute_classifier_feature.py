@@ -28,15 +28,15 @@ obs_len = 20
 pred_len = 30
 
 # following must be changed according to situation !!!!!!!!!
-foldername = ['001', '002', '003', '004']
-# foldername = ['001', '002', '003','004', '005', '006', '007',  '008', '009',  '010',  '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
-data_dir = "../data/val/data"
-batch_feature_dir = "../data/val/data"
-feature_dir = "../data/val/data/data_pickle"
+# foldername = [ '003', '004']
+foldername = [ '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+data_dir = "../data/train/data"
+batch_feature_dir = "../data/train/data"
+feature_dir = "../data/val/train/data_pickle"
 
 batch_size = 100
 
-mode = "val"
+mode = "train"
 ###################
 
 def normalize(line, end_idx):
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     
         start = time.time()
         
-        Parallel(n_jobs=-9)(delayed(load_compute_save)(i,file_names,data_subdir) 
+        Parallel(n_jobs=-5)(delayed(load_compute_save)(i,file_names,data_subdir) 
         for i in range(0, n_file, batch_size))
         
         merge_all_features(idx)
