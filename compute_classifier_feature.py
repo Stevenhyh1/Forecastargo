@@ -149,8 +149,8 @@ def compute_best_candidates(
     
     if len(cl_str)+len(cl_turn)==0:
         idx_list = np.random.randint(len(candidate_centerlines),size=2)
-        best_str = idx_list[0]
-        best_turn = idx_list[1]
+        best_str = candidate_centerlines[idx_list[0]]
+        best_turn = candidate_centerlines[idx_list[1]]
         
         return best_str, best_turn
     
