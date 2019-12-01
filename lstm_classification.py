@@ -14,6 +14,7 @@ from baseline_config import (
 )
 
 #GPU Check
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 cuda = torch.cuda.is_available()
 if cuda:
     device = torch.device('cuda')
@@ -23,8 +24,8 @@ else:
 #Global parameters
 best_loss = float("inf")
 #Directories
-train_dir = 'features/classfeatuer/features_class.pkl'
-val_dir = 'features/classfeatuer/features_class.pkl'
+train_dir = '../all_features/class_train.pkl'
+val_dir = '../all_features/class_val.pkl'
 save_dir = 'models'
 
 #Load the Data
@@ -82,7 +83,7 @@ class ClassRNN(nn.Module):
     def __init__(self, 
                  input_dim:int = 8, 
                  hidden_dim:int = 32, 
-                 layer_dim:int = 3, 
+                 layer_dim:int = 1, 
                  output_dim:int = 2):
         super(ClassRNN, self).__init__()
 
@@ -96,8 +97,8 @@ class ClassRNN(nn.Module):
 
     def forward(self, x):
         # Initialize hidden state with zeros
-        h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
-        c0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
+        h0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_().to(device)
+        c0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_().to(device)
         out, (hn, cn) = self.lstm(x, (h0.detach(), c0.detach()))
         # just want last time step output 
         out = self.fc(out[:, -1, :])
@@ -149,7 +150,7 @@ def validate(val_loader, epoch, rnn, optimizer, criterion):
         #Normalize the loss
         loss = criterion(predictions, target)
         loss_list.append(loss)
-        acc_list.append((pred_label==target).int().numpy().sum())
+        acc_list.append((pred_label==target).int().cpu().numpy().sum())
 
     val_loss = sum(loss_list)/len(loss_list)
     acc = sum(acc_list)/len(acc_list)
@@ -157,7 +158,7 @@ def validate(val_loader, epoch, rnn, optimizer, criterion):
         best_loss = val_loss
 
         os.makedirs(save_dir,exist_ok=True)
-        filename = "{}/Classifier.pth.tar".format(save_dir)
+        filename = "{}/Classifier_{}_{}.pth.tar".format(save_dir, rnn.layer_dim, rnn.hidden_dim)
 
         state = {
                 "epoch": epoch + 1,
@@ -175,13 +176,13 @@ def main():
     STEP 0: PARAMETERS
     '''
     #Hyperparameters
-    batch_size = 2
+    batch_size = 64
     lr = 0.001
-    num_epochs = 10
+    num_epochs = 30
     epoch = 0
     input_dim = 8
-    hidden_dim = 32
-    layer_dim = 3
+    hidden_dim = 64
+    layer_dim = 1
     output_dim = 2
 
     print(f"Using all ({joblib.cpu_count()}) CPUs....")
@@ -255,7 +256,7 @@ def main():
 
         epoch+=1
 
-        if epoch % 5==0:
+        if epoch % 3==0:
             val_start_time = time.time()
             model_loss, acc = validate(
                 val_loader, 
