@@ -9,6 +9,8 @@ Created on Sun Nov 24 11:03:00 2019
 import math
 import pandas as pd
 import numpy as np
+import time
+
 from typing import Any, Dict, List, Optional, Tuple, Union
 from shapely.geometry import Point, Polygon, LineString, LinearRing
 
@@ -107,17 +109,20 @@ class data_loader(Dataset):
         )
 
 def get_nt_abs_values(
-        obs_coords: np.ndarray,
         pred_coords: np.ndarray,
         delta_ref: np.ndarray,
         ):
 #    print(obs_coords.shape,pred_coords.shape)
-    nt_abs_coords = np.concatenate((obs_coords,pred_coords),axis=1)
-    nt_abs_coords[:,0,:] = delta_ref
-    for i in range(1,nt_abs_coords.shape[1]):
-        nt_abs_coords[:,i,:] += nt_abs_coords[:,i-1,:]
-    
-    return nt_abs_coords[:,20:,:]
+#    nt_abs_coords = np.concatenate((obs_coords,pred_coords),axis=1)
+#    nt_abs_coords[:,0,:] = delta_ref
+#    for i in range(1,nt_abs_coords.shape[1]):
+#        nt_abs_coords[:,i,:] += nt_abs_coords[:,i-1,:]
+#    
+#    return nt_abs_coords[:,20:,:]
+    for i in range(pred_coords.shape[0]):
+        pred_coords[i,:,:] += delta_ref[i,:]
+        
+    return pred_coords
 
 def get_xy_from_nt_seq(nt_seq: np.ndarray,
                        centerlines: List[np.ndarray]) -> np.ndarray:
@@ -234,8 +239,8 @@ def get_xy_from_nt(n: float, t: float,
 
     
 if __name__ == "__main__":
-    data_dir = 'features/features_train_sample.pkl'
-    model_dir = 'models/LSTM.pth.tar'
+    data_dir = 'features/features_val.pkl'
+    model_dir = 'models/LSTM_1.pth.tar'
     batch_size = 5
     
     cuda = torch.cuda.is_available()
@@ -246,7 +251,7 @@ if __name__ == "__main__":
         device = torch.device('cpu')
         model = torch.load(model_dir,map_location=torch.device('cpu'))
     
-    
+    start = time.time()
     # load best model
     encoder = LSTMEncoder()
     decoder = LSTMDecoder()
@@ -267,6 +272,13 @@ if __name__ == "__main__":
     ADE_list = []
     for batch_id,(input_data,target,ground_truth,cl_list,delta_ref) in enumerate(test_loader):
 #        print(input_data.shape,target.shape,ground_truth.shape,len(cl_list),delta_ref.shape)
+        for cl_idx in range(input_data.shape[0]):
+            if len(cl_list[cl_idx].shape) != 2:
+                input_data = np.delete(input_data,cl_idx,0)
+                target = np.delete(target,cl_idx,0)
+                ground_truth = np.delete(ground_truth,cl_idx,0)
+                del cl_list[cl_idx]
+                delta_ref = np.delete(delta_ref,cl_idx,0)
         if batch_id%100 == 0:
             print(f"Evaluating {batch_id*batch_size}/{len(test_loader)*batch_size}")
         input_data = input_data.to(device)
@@ -314,14 +326,13 @@ if __name__ == "__main__":
         loss_list.append(loss.detach().numpy())
         
         nt_abs = get_nt_abs_values(
-                input_data.detach().cpu().clone().numpy()[:,:,:2],
                 decoder_outputs.detach().cpu().clone().numpy(),
                 delta_ref
                 )
         xy_abs = get_xy_from_nt_seq(nt_abs,cl_list)
         
-        dis = np.sqrt(np.linalg.norm((xy_abs[:,-1,:]-ground_truth[:,-1,:]))**2/sample_size)
-        ade = np.sqrt(np.linalg.norm((xy_abs-ground_truth))**2/output_size/sample_size)
+        dis = np.sum(np.linalg.norm((xy_abs[:,-1,:]-ground_truth[:,-1,:]),axis=1))/sample_size
+        ade = np.sum(np.sum(np.linalg.norm((xy_abs-ground_truth),axis=2)))/output_size/sample_size
         dis_list.append(dis)
         ADE_list.append(ade)
 
@@ -331,3 +342,4 @@ if __name__ == "__main__":
     ADE = sum(ADE_list)/len(ADE_list)
     
     print(f"Average loss: {val_loss}, Average FDE: {FDE}, Average ADE: {ADE}")
+    print(f"Total time: {time.time()-start}")
