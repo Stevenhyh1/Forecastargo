@@ -26,16 +26,18 @@ from compute_classifier_feature import compute_best_candidates
 import torch
 from lstm_classification import ClassRNN
 
+device = torch.device('cpu')
+
 obs_len = 20
 pred_len = 30
 
-# foldername = ['001',  '002', '003',  '004',  '005']
-foldername = ['013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+foldername = ['001',  '002', '003',  '004',  '005', '006', '007', '008']
+# foldername = ['013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 # following must be changed according to situation !!!!!!!!!
-data_dir = "../train/data"
-batch_feature_dir = "../train/data"
+data_dir = "../data/test_obs/data"
+batch_feature_dir = "../data/test_obs/data"
 # feature_dir = "../data/train/data/data_pickle"
-classifier_model_dir = "models/Classifier.pth.tar"
+classifier_model_dir = "models/Classifier_3_32.pth.tar"
 
 batch_size = 100
 
@@ -47,7 +49,7 @@ def find_oracle_centerline(
         rnn
         ):
     class_features = class_features.reshape((1,class_features.shape[0],class_features.shape[1]))
-    predictions = rnn(torch.from_numpy(class_features).float())
+    predictions = rnn(torch.from_numpy(class_features).float().to(device))
     _, pred_label = torch.max(predictions.data, 1)
     
     return pred_label
@@ -186,7 +188,7 @@ if __name__ == "__main__":
         
         start = time.time()
         
-        Parallel(n_jobs=-9)(delayed(load_compute_save)(i,file_names,social_instance,rnn,data_subdir) 
+        Parallel(n_jobs=-5)(delayed(load_compute_save)(i,file_names,social_instance,rnn,data_subdir) 
         for i in range(0, n_file, batch_size))
         
         merge_all_features(data_subdir)
@@ -226,3 +228,84 @@ if __name__ == "__main__":
 #        RAW_DATA_FORMAT,
 #        mode
 #    )
+
+"""Error"""
+# finished computing index 500 to 599
+# finished computing index 300 to 399
+# finished computing index 700 to 799
+# finished computing index 0 to 99
+# finished computing index 1100 to 1199
+# finished computing index 800 to 899
+# finished computing index 900 to 999
+# finished computing index 400 to 499
+# finished computing index 600 to 699
+# finished computing index 100 to 199
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# /usr/lib/python3.6/multiprocessing/semaphore_tracker.py:143: UserWarning: semaphore_tracker: There appear to be 1 leaked semaphores to clean up at shutdown
+#   len(cache))
+# joblib.externals.loky.process_executor._RemoteTraceback: 
+# """
+# Traceback (most recent call last):
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/externals/loky/process_executor.py", line 418, in _process_worker
+#     r = call_item()
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/externals/loky/process_executor.py", line 272, in __call__
+#     return self.fn(*self.args, **self.kwargs)
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/_parallel_backends.py", line 600, in __call__
+#     return self.func(*args, **kwargs)
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/parallel.py", line 256, in __call__
+#     for func, args, kwargs in self.items]
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/parallel.py", line 256, in <listcomp>
+#     for func, args, kwargs in self.items]
+#   File "compute_test_features.py", line 125, in load_compute_save
+#     RAW_DATA_FORMAT,
+#   File "compute_test_features.py", line 72, in compute_map_features
+#     viz=False)
+#   File "/home/yihe/argoverse-api/argoverse/utils/centerline_utils.py", line 263, in get_nt_distance
+#     tang_dist, norm_dist = get_normal_and_tangential_distance_point(xy[i][0], xy[i][1], centerline, last=False)
+#   File "/home/yihe/argoverse-api/argoverse/utils/centerline_utils.py", line 216, in get_normal_and_tangential_distance_point
+#     centerline_ls = LineString(centerline)
+#   File "/usr/local/lib/python3.6/dist-packages/shapely/geometry/linestring.py", line 48, in __init__
+#     self._set_coords(coordinates)
+#   File "/usr/local/lib/python3.6/dist-packages/shapely/geometry/linestring.py", line 97, in _set_coords
+#     ret = geos_linestring_from_py(coordinates)
+#   File "shapely/speedups/_speedups.pyx", line 87, in shapely.speedups._speedups.geos_linestring_from_py
+# AssertionError
+# """
+
+# The above exception was the direct cause of the following exception:
+
+# Traceback (most recent call last):
+#   File "compute_test_features.py", line 192, in <module>
+#     for i in range(0, n_file, batch_size))
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/parallel.py", line 1016, in __call__
+#     self.retrieve()
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/parallel.py", line 908, in retrieve
+#     self._output.extend(job.get(timeout=self.timeout))
+#   File "/home/yihe/.local/lib/python3.6/site-packages/joblib/_parallel_backends.py", line 554, in wrap_future_result
+#     return future.result(timeout=timeout)
+#   File "/usr/lib/python3.6/concurrent/futures/_base.py", line 425, in result
+#     return self.__get_result()
+#   File "/usr/lib/python3.6/concurrent/futures/_base.py", line 384, in __get_result
+#     raise self._exception
+# AssertionError

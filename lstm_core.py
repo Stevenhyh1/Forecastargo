@@ -428,14 +428,14 @@ class Dataset_Loader(Dataset):
 
 def main():
     #Directories
-    train_dir = '/home/yihe/data/feature/features_train.pkl'
-    val_dir = '/home/yihe/data/feature/features_val.pkl'
-    test_dir = "data/test_obs/data"
+    train_dir = '../all_features/features_train.pkl'
+    val_dir = '../all_features/features_val.pkl'
+    # test_dir = "data/test_obs/data"
     
     #Hyperparameters
     batch_size = 64
     lr = 0.001
-    num_epochs = 200
+    num_epochs = 30
     epoch = 0
 
     args = parser.parse_args()
@@ -517,7 +517,7 @@ def main():
             )
 
         epoch+=1
-        if epoch % 10==0:
+        if epoch % 3==0:
             val_start_time = time.time()
             model_loss, FDE, ADE = validate(
                 val_loader,

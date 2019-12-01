@@ -14,7 +14,7 @@ from baseline_config import (
 )
 
 #GPU Check
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]=""
 cuda = torch.cuda.is_available()
 if cuda:
     device = torch.device('cuda')
@@ -83,7 +83,7 @@ class ClassRNN(nn.Module):
     def __init__(self, 
                  input_dim:int = 8, 
                  hidden_dim:int = 32, 
-                 layer_dim:int = 1, 
+                 layer_dim:int = 3, 
                  output_dim:int = 2):
         super(ClassRNN, self).__init__()
 
