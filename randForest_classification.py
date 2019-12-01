@@ -60,34 +60,42 @@ def main():
     """
     train_x and train_y
     """
+    
     for i in range(num_sample_train):
-        if i==0:
-            train_x=data_train_inputs[i,:,:]
-        else:
-            train_x=np.vstack((train_x,data_train_inputs[i,:,:]))
         for j in range(num_timestep_train):
-            if j==0 and i==0:
-                train_y=data_train_outputs[i]
+            if j==0:
+                temp_train=data_train_inputs[i,j,:]
             else:
-                train_y=np.vstack((train_y,data_train_outputs[i]))
+                temp_train=np.hstack((temp_train,data_train_inputs[i,j,:]))
+        if i==0:
+            train_x=temp_train
+            train_y=data_train_outputs[i]
+        else:
+            train_x=np.vstack((train_x,temp_train))
+            train_y=np.vstack((train_y,data_train_outputs[i]))
+        
     """
     val_x and val_y
     """
     for i in range(num_sample_val):
-        if i==0:
-            val_x=data_val_inputs[i,:,:]
-        else:
-            val_x=np.vstack((val_x,data_val_inputs[i,:,:]))
         for j in range(num_timestep_val):
-            if j==0 and i==0:
-                val_y=data_val_outputs[i]
+            if j==0:
+                temp_val=data_val_inputs[i,j,:]
             else:
-                val_y=np.vstack((val_y,data_val_outputs[i]))
-#    print(train_x.shape)
-#    print(train_y.shape)
-#    print(val_x.shape)
-#    print(val_y.shape)
-    
+                temp_val=np.hstack((temp_val,data_val_inputs[i,j,:]))
+        if i==0:
+            val_x=temp_val
+            val_y=data_val_outputs[i]
+        else:
+            val_x=np.vstack((val_x,temp_val))
+            val_y=np.vstack((val_y,data_val_outputs[i]))
+    print(train_x.shape)
+    print(train_y.shape)
+    print(val_x.shape)
+    print(val_y.shape)
+#    print(num_sample_val)
+#    print(num_timestep_val)
+#    
     """
     step2:create random forest classifier
     """
