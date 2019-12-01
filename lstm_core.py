@@ -433,7 +433,7 @@ def main():
     # test_dir = "data/test_obs/data"
     
     #Hyperparameters
-    batch_size = 64
+    batch_size = 32
     lr = 0.001
     num_epochs = 30
     epoch = 0
