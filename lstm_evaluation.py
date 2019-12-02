@@ -13,12 +13,17 @@ import time
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 from shapely.geometry import Point, Polygon, LineString, LinearRing
+import matplotlib.pyplot as plt
 
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
-
-from baseline_config import FEATURE_FORMAT
+from argoverse.utils.mpl_plotting_utils import visualize_centerline
+from argoverse.evaluation.competition_util import generate_forecasting_h5
+from baseline_config import (
+        FEATURE_FORMAT,
+        TEST_FEATURE_FORMAT,
+        )
 from lstm_core import(
         LSTMEncoder,
         LSTMDecoder,
@@ -27,15 +32,17 @@ from lstm_core import(
 def my_collate(batch):
     r"""Puts each data field into a tensor with outer dimension batch size"""
 
-    _input = torch.from_numpy(np.stack([item[0] for item in batch])).float()
-    _output = torch.from_numpy(np.stack([item[1] for item in batch])).float()
-    _gt = np.stack([item[2] for item in batch])
-    _cl = [item[3] for item in batch]
-    _delta = np.stack([item[4] for item in batch])
-    return (_input,_output,_gt,_cl,_delta)
+    _id = np.stack([item[0] for item in batch])
+    _input = torch.from_numpy(np.stack([item[1] for item in batch])).float()
+    _output = torch.from_numpy(np.stack([item[2] for item in batch])).float()
+    _gt = np.stack([item[3] for item in batch])
+    _cl = [item[4] for item in batch]
+    _delta = np.stack([item[5] for item in batch])
+    return (_id,_input,_output,_gt,_cl,_delta)
         
 def load_and_preprocess(
-    feature_file: str = "features/forecasting_features_val.pkl",
+    feature_file: str,
+    feature_format
 ): 
 
     #load the data and save in dataframe
@@ -43,7 +50,8 @@ def load_and_preprocess(
     features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,11]
     centerlines = dataframe['ORACLE_CENTERLINES'].values
     delta_ref = np.stack(dataframe["DELTA_REFERENCE"].values) #shape: [5,2]
-
+    seq_id = dataframe['ID'].values
+    
     #specify the desired inputs and outputs
     input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS",
                            "MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", 
@@ -69,6 +77,7 @@ def load_and_preprocess(
     _gt = ground_truth_data[:,20:,:] #shape: [5,30,2]
     
     data_dict = {
+        "id": seq_id,
         "input": _input,
         "output": _output,
         "ground_truth": _gt,
@@ -87,6 +96,7 @@ class data_loader(Dataset):
         self.ground_truth = data_dict['ground_truth']
         self.centerlines = data_dict["centerlines"]
         self.delta_ref = data_dict["delta_reference"]
+        self.seq_id = data_dict["id"]
         
         self.num_samples = self.input_data.shape[0]
 
@@ -101,6 +111,7 @@ class data_loader(Dataset):
     def __getitem__(self, idx):
 
         return (
+            self.seq_id[idx],
             self.input_data[idx],
             self.output_data[idx],
             self.ground_truth[idx],
@@ -237,11 +248,52 @@ def get_xy_from_nt(n: float, t: float,
 
     return x1, y1
 
+def viz_trajectory(
+        xy_pred: np.ndarray,
+        centerline: np.ndarray
+        ):
+    
+    plt.figure(figsize=(8, 7))
+    visualize_centerline(centerline)
+    plt.plot(
+        xy[:, 0],
+        xy[:, 1],
+        "-",
+        color="#d33e4c",
+        alpha=1,
+        linewidth=3,
+        zorder=15,
+    )
+
+    final_x = xy[-1, 0]
+    final_y = xy[-1, 1]
+
+    plt.plot(
+        final_x,
+        final_y,
+        "o",
+        color="#d33e4c",
+        alpha=1,
+        markersize=10,
+        zorder=15,
+    )
+    plt.xlabel("Map X")
+    plt.ylabel("Map Y")
+    plt.axis("off")
+    plt.show()
+
+def viz_best_worst_case(
+        output_dic,
+        dis_list
+        ):
+    ind = np.argsort(dis_list)
+    viz_trajectory(output_dic[ind[1000]][0],output_dic[ind[1000]][1])
     
 if __name__ == "__main__":
-    data_dir = 'features/features_val.pkl'
-    model_dir = 'models/LSTM_1.pth.tar'
+    data_dir = 'features/features_test.pkl'
+    model_dir = 'models/LSTM_2.pth.tar'
     batch_size = 5
+    mode = "test"
     
     cuda = torch.cuda.is_available()
     if cuda:
@@ -262,7 +314,10 @@ if __name__ == "__main__":
     decoder.eval()
     
     # load test data
-    data_dict = load_and_preprocess(data_dir)
+    if mode == 'test':
+        data_dict = load_and_preprocess(data_dir,TEST_FEATURE_FORMAT)
+    else:
+        data_dict = load_and_preprocess(data_dir,FEATURE_FORMAT)
     dataset = data_loader(data_dict)
     test_loader = DataLoader(dataset,batch_size=batch_size,collate_fn=my_collate)
     
@@ -270,7 +325,10 @@ if __name__ == "__main__":
     loss_list = []
     dis_list = []
     ADE_list = []
-    for batch_id,(input_data,target,ground_truth,cl_list,delta_ref) in enumerate(test_loader):
+    
+#    output_dict = []
+    
+    for batch_id,(seq_id,input_data,target,ground_truth,cl_list,delta_ref) in enumerate(test_loader):
 #        print(input_data.shape,target.shape,ground_truth.shape,len(cl_list),delta_ref.shape)
         for cl_idx in range(input_data.shape[0]):
             if len(cl_list[cl_idx].shape) != 2:
@@ -280,7 +338,7 @@ if __name__ == "__main__":
                 del cl_list[cl_idx]
                 delta_ref = np.delete(delta_ref,cl_idx,0)
         if batch_id%100 == 0:
-            print(f"Evaluating {batch_id*batch_size}/{len(test_loader)*batch_size}")
+            print(f"\r Evaluating {batch_id*batch_size}/{len(test_loader)*batch_size}",end="")
         input_data = input_data.to(device)
         target = target.to(device)
 
@@ -331,10 +389,13 @@ if __name__ == "__main__":
                 )
         xy_abs = get_xy_from_nt_seq(nt_abs,cl_list)
         
-        dis = np.sum(np.linalg.norm((xy_abs[:,-1,:]-ground_truth[:,-1,:]),axis=1))/sample_size
-        ade = np.sum(np.sum(np.linalg.norm((xy_abs-ground_truth),axis=2)))/output_size/sample_size
-        dis_list.append(dis)
-        ADE_list.append(ade)
+#        for seq in range(len(seq_id)):
+#            output_dict.append([xy_abs[seq,:,:],cl_list[seq]])
+        
+        dis = np.linalg.norm((xy_abs[:,-1,:]-ground_truth[:,-1,:]),axis=1)
+        ade = np.sum(np.linalg.norm((xy_abs-ground_truth),axis=2),axis=1)/output_size
+        dis_list = np.concatenate((dis_list,dis))
+        ADE_list = np.concatenate((ADE_list,ade))
 
     #Average the loss (for all batches)
     val_loss = (sum(loss_list)/len(loss_list))
@@ -343,3 +404,17 @@ if __name__ == "__main__":
     
     print(f"Average loss: {val_loss}, Average FDE: {FDE}, Average ADE: {ADE}")
     print(f"Total time: {time.time()-start}")
+    
+    fig1=plt.figure(1)
+    plt.hist(dis_list,bins=20,range=(0,20))
+    plt.title("Final Displacement Error distribution of test dataset")
+
+    fig2=plt.figure(2)
+    plt.hist(ADE_list,bins=20,range=(0,10))
+    plt.title("Average Displacement Error distribution of test dataset")
+
+    
+#    generate_forecasting_h5(output_dict, 'com/')
+#    viz_ind = np.random.randint(len(dis_list))
+#    viz_best_worst_case(output_dict,dis_list)
+#Average loss: 9.367685013698052, Average FDE: 4.204276200197748, Average ADE: 2.089169880761964
