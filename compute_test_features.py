@@ -31,11 +31,11 @@ device = torch.device('cpu')
 obs_len = 20
 pred_len = 30
 
-foldername = ['001',  '002', '003',  '004',  '005', '006', '007', '008']
+foldername = ['001',  '002', '003',  '004']
 # foldername = ['013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 # following must be changed according to situation !!!!!!!!!
-data_dir = "../data/test_obs/data"
-batch_feature_dir = "../data/test_obs/data"
+data_dir = "../data/val/data"
+batch_feature_dir = "../data/val/data"
 # feature_dir = "../data/train/data/data_pickle"
 classifier_model_dir = "models/Classifier_3_32.pth.tar"
 

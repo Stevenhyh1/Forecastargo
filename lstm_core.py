@@ -113,11 +113,15 @@ def load_and_preprocess(
     #norm_traj = normalize_trajectory(dataframe)
 
     #specify the desired inputs and outputs
-    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS",
-                           "MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", 
-                           "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
-                           "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
-                           "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
+    # input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS",
+    #                        "MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", 
+    #                        "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
+    #                        "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
+    #                        "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
+    input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS", 
+                        "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
+                        "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
+                        "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
     input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
     # input_features_idx = [9,10,6,7,8]
     #load the features from dataframe
@@ -331,7 +335,7 @@ def validate(val_loader, epoch, loss_function, logger,
         
         save_dir = 'models'
         os.makedirs(save_dir,exist_ok=True)
-        filename = "{}/LSTM.pth.tar".format(save_dir)
+        filename = "{}/LSTM_without_distance.pth.tar".format(save_dir)
 
         state = {
                 "epoch": epoch + 1,
@@ -452,7 +456,7 @@ def main():
 
     #Get the model
     loss_function = nn.MSELoss()
-    encoder = LSTMEncoder(input_size=12)
+    encoder = LSTMEncoder(input_size=10)
     decoder = LSTMDecoder(output_size=2)
     encoder.to(device)
     decoder.to(device)
