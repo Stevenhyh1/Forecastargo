@@ -14,9 +14,13 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 
 #Directories
-train_dir = 'features/classfeatuer/features_class.pkl'
-val_dir = 'features/classfeatuer/features_class.pkl'
+train_dir = 'feature/class_train.pkl'
+val_dir = 'feature/class_val.pkl'
 save_dir = 'models'
+##Directories
+#train_dir = 'features/classfeatuer/features_class.pkl'
+#val_dir = 'features/classfeatuer/features_class.pkl'
+#save_dir = 'models'
 
 #Load the Data
 def load_and_preprocess(
@@ -40,20 +44,7 @@ def load_and_preprocess(
     }  
     return data_dict
 
-def findOptimalK(train_x,train_y,val_x,val_y):
-    #n is thershold, which is ten right now, the value of k should not exceed the number of sample
-    #optimal k should not be too large or too small 
-    if len(train_y)>10:
-        n=10
-    else:
-        n=len(train_y)
-    acc_record=[]
-    for i in range(1,n+1):
-        knn= KNeighborsClassifier(n_neighbors=i)
-        knn.fit(train_x,train_y)
-        output_predict=knn.predict(val_x)
-        acc_record=np.append(acc_record,accuracy_score(val_y,output_predict))
-    return acc_record[np.argmax(acc_record)]
+
 def main():
     """
     step1:load data
@@ -73,76 +64,53 @@ def main():
     num_sample_val=data_val_inputs.shape[0]
     num_timestep_train=data_train_inputs.shape[1]
     num_timestep_val=data_val_inputs.shape[1]
-#    num_features=data_train_inputs.shape[2]
+
     """
     train_x and train_y
     """
-    
-    for i in range(num_sample_train):
-        for j in range(num_timestep_train):
-            if j==0:
-                temp_train=data_train_inputs[i,j,:]
-            else:
-                temp_train=np.hstack((temp_train,data_train_inputs[i,j,:]))
-        if i==0:
-            train_x=temp_train
-            train_y=data_train_outputs[i]
-        else:
-            train_x=np.vstack((train_x,temp_train))
-            train_y=np.vstack((train_y,data_train_outputs[i]))
-        
+
+    train_x=np.reshape(data_train_inputs,(num_sample_train,num_timestep_train*8))
+    train_y=data_train_outputs
+
     """
     val_x and val_y
     """
-    for i in range(num_sample_val):
-        for j in range(num_timestep_val):
-            if j==0:
-                temp_val=data_val_inputs[i,j,:]
-            else:
-                temp_val=np.hstack((temp_val,data_val_inputs[i,j,:]))
-        if i==0:
-            val_x=temp_val
-            val_y=data_val_outputs[i]
-        else:
-            val_x=np.vstack((val_x,temp_val))
-            val_y=np.vstack((val_y,data_val_outputs[i]))
-    train_y=train_y.ravel()
-    val_y=val_y.ravel()        
+    val_x=np.reshape(data_val_inputs,(num_sample_val,(num_timestep_val*8)))
+    val_y=data_val_outputs
+     
     print(train_x.shape)
     print(train_y.shape)
     print(val_x.shape)
     print(val_y.shape)
-#    print(num_sample_val)
-#    print(num_timestep_val)
-    
-    
+
     """
     step2:create knn classifier
     """
-    """
-    find the optimal K
-    """
-    n=findOptimalK(train_x,train_y,val_x,val_y)
-    n=int(n)
-    
-    knn= KNeighborsClassifier(n_neighbors=n)
-    
-    """
-    step3:train the model
-    """
-    print("Training begins...")
-    train_start=time.time()
-    knn.fit(train_x,train_y)
-    train_end=time.time()
-    print(f"Train completed in {train_end-train_start} s")
-    """
-    step4:validate the model
-    """
-    print("Validation begins...")
-    val_start=time.time()
-    output_predict=knn.predict(val_x)
-    val_end=time.time()
-    acc=accuracy_score(val_y,output_predict)
-    print(f"Validation completed in {val_end-val_start} s, the accuracy is {acc}")
+    for i in range(1,11):
+       knn= KNeighborsClassifier(n_neighbors=i)
+       print("n=",i)
+       """
+       step3:train the model
+       """
+       print("Training begins...")
+       train_start=time.time()
+       knn.fit(train_x,train_y)
+       train_end=time.time()
+       print(f"Train completed in {train_end-train_start} s")
+       """
+       step4:validate the model
+       """
+       print("Validation begins...")
+       val_start=time.time()
+       output_predict=knn.predict(train_x)
+       val_end=time.time()
+       acc=accuracy_score(train_y,output_predict)
+       print(f"Validation_train completed in {val_end-val_start} s, the accuracy for n={i} is {acc}")
+       val2_start=time.time()
+       output_predict2=knn.predict(val_x)
+       val2_end=time.time()
+       acc=accuracy_score(val_y,output_predict2)
+       print(f"Validation_val completed in {val2_end-val2_start} s, the accuracy for n={i} is {acc}")
+
 if __name__=="__main__":
     main()

@@ -13,8 +13,8 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 
 #Directories
-train_dir = 'features/classfeatuer/features_class.pkl'
-val_dir = 'features/classfeatuer/features_class.pkl'
+train_dir = 'feature/class_train.pkl'
+val_dir = 'feature/class_val.pkl'
 save_dir = 'models'
 
 #Load the Data
@@ -58,42 +58,19 @@ def main():
     num_sample_val=data_val_inputs.shape[0]
     num_timestep_train=data_train_inputs.shape[1]
     num_timestep_val=data_val_inputs.shape[1]
-    
 
-    
-    num_features=data_train_inputs.shape[2]
     """
     train_x and train_y
     """
-    
-    for i in range(num_sample_train):
-        for j in range(num_timestep_train):
-            if j==0:
-                temp_train=data_train_inputs[i,j,:]
-            else:
-                temp_train=np.hstack((temp_train,data_train_inputs[i,j,:]))
-        if i==0:
-            train_x=temp_train
-            train_y=data_train_outputs[i]
-        else:
-            train_x=np.vstack((train_x,temp_train))
-            train_y=np.vstack((train_y,data_train_outputs[i]))
+    train_x=np.reshape(data_train_inputs,(num_sample_train,num_timestep_train*8))
+    train_y=data_train_outputs
+
         
     """
     val_x and val_y
     """
-    for i in range(num_sample_val):
-        for j in range(num_timestep_val):
-            if j==0:
-                temp_val=data_val_inputs[i,j,:]
-            else:
-                temp_val=np.hstack((temp_val,data_val_inputs[i,j,:]))
-        if i==0:
-            val_x=temp_val
-            val_y=data_val_outputs[i]
-        else:
-            val_x=np.vstack((val_x,temp_val))
-            val_y=np.vstack((val_y,data_val_outputs[i]))
+    val_x=np.reshape(data_val_inputs,(num_sample_val,(num_timestep_val*8)))
+    val_y=data_val_outputs
     train_y=train_y.ravel()
     val_y=val_y.ravel()        
     print(train_x.shape)
@@ -121,9 +98,9 @@ def main():
     """
     print("Validation begins...")
     val_start=time.time()
-    output_predict=clf.predict(val_x)
+    output_predict=clf.predict(train_x)
     val_end=time.time()
-    acc=accuracy_score(val_y,output_predict)
+    acc=accuracy_score(train_y,output_predict)
     print(f"Validation completed in {val_end-val_start} s, the accuracy is {acc}")
 if __name__=="__main__":
     main()
