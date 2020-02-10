@@ -1,0 +1,47 @@
+Using all (16) CPUs....
+Using all (2) GPUs...
+205942
+Training begins ...
+Epoch: 0 completed in: 165.98918962478638s, Total time: 2.7664865374565126 mins, loss is: 131.966552734375
+Epoch: 1 completed in: 168.69878268241882s, Total time: 5.578134723504385 mins, loss is: 33.3598518371582
+Epoch: 2 completed in: 168.32881236076355s, Total time: 8.383617118994396 mins, loss is: 26.80082893371582
+Validation loss: 17.214855194091797, FDE: 7.161787524016205, ADE: 4.70970776890645, Total time: 8.497345940272014 mins
+Epoch: 3 completed in: 169.47731065750122s, Total time: 11.321968841552735 mins, loss is: 24.444644927978516
+Epoch: 4 completed in: 168.764146566391s, Total time: 14.134706723690034 mins, loss is: 23.193714141845703
+Epoch: 5 completed in: 166.97472500801086s, Total time: 16.91762101650238 mins, loss is: 22.686664581298828
+Validation loss: 14.6929931640625, FDE: 6.567898474914649, ADE: 4.3286615945966185, Total time: 17.04280219078064 mins
+Epoch: 6 completed in: 170.40869998931885s, Total time: 19.88294934431712 mins, loss is: 21.87805938720703
+Epoch: 7 completed in: 169.6265549659729s, Total time: 22.710060771306356 mins, loss is: 21.285396575927734
+Epoch: 8 completed in: 171.95996737480164s, Total time: 25.57606234550476 mins, loss is: 20.846866607666016
+Validation loss: 13.928346633911133, FDE: 6.436900737920892, ADE: 4.197464386540256, Total time: 25.69350485801697 mins
+Epoch: 9 completed in: 170.6992084980011s, Total time: 28.538493700822194 mins, loss is: 20.778324127197266
+Epoch: 10 completed in: 170.37607216835022s, Total time: 31.378097069263458 mins, loss is: 19.859657287597656
+Epoch: 11 completed in: 171.80227756500244s, Total time: 34.2414705435435 mins, loss is: 19.651309967041016
+Validation loss: 12.594503402709961, FDE: 6.379603020164159, ADE: 4.009310577520886, Total time: 34.36688253879547 mins
+Epoch: 12 completed in: 170.9265012741089s, Total time: 37.21565961440404 mins, loss is: 19.19158172607422
+Epoch: 13 completed in: 172.9924876689911s, Total time: 40.098869820435844 mins, loss is: 18.851449966430664
+Epoch: 14 completed in: 171.87750220298767s, Total time: 42.96349699894587 mins, loss is: 18.638830184936523
+Validation loss: 11.23945426940918, FDE: 6.1683627448827085, ADE: 3.816789064625588, Total time: 43.08967227935791 mins
+Epoch: 15 completed in: 170.2827000617981s, Total time: 45.92771934668223 mins, loss is: 18.267621994018555
+Epoch: 16 completed in: 170.88413310050964s, Total time: 48.77579069534938 mins, loss is: 18.304851531982422
+Epoch: 17 completed in: 170.7303750514984s, Total time: 51.62129905621211 mins, loss is: 17.74358558654785
+Validation loss: 11.58431625366211, FDE: 6.1993751276702564, ADE: 3.8396586538134425, Total time: 51.73817527294159 mins
+Epoch: 18 completed in: 169.16130089759827s, Total time: 54.557531305154164 mins, loss is: 17.775373458862305
+Epoch: 19 completed in: 169.91595220565796s, Total time: 57.38946597576141 mins, loss is: 17.23081398010254
+Epoch: 20 completed in: 169.21579575538635s, Total time: 60.2097314119339 mins, loss is: 17.55597496032715
+Traceback (most recent call last):
+  File "lstm_core.py", line 539, in <module>
+    main()
+  File "lstm_core.py", line 531, in main
+    prev_loss,
+  File "lstm_core.py", line 306, in validate
+    decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
+  File "/home/yihe/.local/lib/python3.6/site-packages/torch/nn/modules/module.py", line 541, in __call__
+    result = self.forward(*input, **kwargs)
+  File "lstm_core.py", line 176, in forward
+    hidden = self.lstm1(embedded, hidden)
+  File "/home/yihe/.local/lib/python3.6/site-packages/torch/nn/modules/module.py", line 541, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/home/yihe/.local/lib/python3.6/site-packages/torch/nn/modules/rnn.py", line 945, in forward
+    self.bias_ih, self.bias_hh,
+RuntimeError: CUDA out of memory. Tried to allocate 2.00 MiB (GPU 0; 10.76 GiB total capacity; 9.91 GiB already allocated; 2.44 MiB free; 26.50 KiB cached)
