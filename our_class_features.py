@@ -1,17 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov 15 09:08:40 2019
-
-@author: x
-"""
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-#from baseline_config import RAW_DATA_FORMAT
 
-#import os
 
 def compute_rotation_angle(coords: np.ndarray):
     x = coords[:,0]
@@ -88,31 +79,3 @@ def compute_class_features(
     features = np.concatenate((delta_xy,angle,hist),axis=1)
         
     return features
-
-#if __name__ == "__main__":
-#    file_names = os.listdir("../train/data")
-#    np.random.shuffle(file_names)
-#    file_names = file_names[:10]
-##    file_names = os.listdir('../forecasting_sample/data')
-#    n_file = len(file_names)
-#    
-##    start = time.time()
-#    xy_data = np.empty((n_file,50,2))
-#    for i in range(n_file):
-#        file_path = "../train/data/"+file_names[i]
-##        file_path = file_names
-#        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
-#        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-#        features = compute_class_features(df,agent_track,20,50,RAW_DATA_FORMAT)
-#        xy_data[i,:,:] = agent_track[:,(RAW_DATA_FORMAT["X"],RAW_DATA_FORMAT["Y"])]
-#        plt.figure()
-#        plt.plot(xy_data[i,:,0],xy_data[i,:,1])
-#        plt.plot(xy_data[i,:20,0],xy_data[i,:20,1])
-#        plt.axis('equal')
-#        print(i)
-##        print('hist',features[-1,3:])
-#        print('Angle',features[-1,2])
-#
-#    
-##    end = time.time()
-##    print(end-start)

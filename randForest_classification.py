@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 26 17:24:34 2019
-
-@author: Quanwei
-"""
 import numpy as np
 import pandas as pd
 import time
@@ -56,7 +50,6 @@ def main():
     num_sample_val=data_val_inputs.shape[0]
     num_timestep_train=data_train_inputs.shape[1]
     num_timestep_val=data_val_inputs.shape[1]
-#    num_features=data_train_inputs.shape[2]
     """
     train_x and train_y
     """
@@ -75,9 +68,7 @@ def main():
     print(train_y.shape)
     print(val_x.shape)
     print(val_y.shape)
-#    print(num_sample_val)
-#    print(num_timestep_val)
-#    
+
     """
     step2:create random forest classifier
     """
@@ -100,5 +91,6 @@ def main():
     val_end=time.time()
     acc=accuracy_score(val_y,output_predict)
     print(f"Validation completed in {val_end-val_start} s, the accuracy is {acc}")
+
 if __name__=="__main__":
     main()

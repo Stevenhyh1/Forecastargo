@@ -28,8 +28,7 @@ obs_len = 20
 pred_len = 30
 
 # following must be changed according to situation !!!!!!!!!
-foldername = [ '006','007','008','009','010']
-# foldername = [ '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
+foldername = [ '011', '012',  '013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 data_dir = "../data/train/data"
 batch_feature_dir = "../data/train/data"
 feature_dir = "../data/train/data/data_pickle"
@@ -91,18 +90,10 @@ def compute_gt(
     ):
     agent_xy = agent_track[:, [raw_data_format["X"], raw_data_format["Y"]
                                ]].astype("float")
-#    traj_norm = normalize(agent_xy, agent_xy.shape[0]-1)
-#    p_pos = np.sum(traj_norm[:,1]>=0)/traj_norm.shape[0]
     
     traj_norm = normalize(agent_xy, 5)
     p_end = np.abs(traj_norm[-1,1]/traj_norm[-1,0])
     
-#    plt.figure()
-#    plt.plot(traj_norm[:,0],traj_norm[:,1])
-#    plt.axis("equal")
-#    plt.xlabel('x')
-#    plt.ylabel('y')
-#    plt.show()
     
     thres = 0.2
     if p_end>thres:
@@ -244,43 +235,6 @@ if __name__ == "__main__":
         merge_all_features(idx)
         end = time.time()
         print(end-start)
-    
-#    df = pd.read_pickle('../forecasting_sample/all_feature/classifier_feat.pkl')
-   
-#    for i in range(5):
-#        file_path = '../forecasting_sample/data100/'+file_names[i+90]
-#        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
-#        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-#        
-#        gt = compute_gt(agent_track, RAW_DATA_FORMAT)
-#        print(gt)
-#        break
-#    
-#    file_names = os.listdir('../forecasting_sample/data')
-#    file_path = '../forecasting_sample/data/'+file_names[4]
-#    df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
-#    agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-#
-#    best_str, best_turn = compute_best_candidates(
-#        agent_track,
-#        obs_len,
-#        pred_len,
-#        RAW_DATA_FORMAT
-#    )
-#    
-#    plt.figure()
-#    plt.plot(best_str[:,0],best_str[:,1])
-#    plt.axis("equal")
-#    plt.xlabel('x')
-#    plt.ylabel('y')
-#    plt.show()
-#    
-#    plt.figure()
-#    plt.plot(best_turn[:,0],best_turn[:,1])
-#    plt.axis("equal")
-#    plt.xlabel('x')
-#    plt.ylabel('y')
-#    plt.show()
         
 
 

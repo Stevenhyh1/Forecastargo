@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Dec  6 21:17:47 2019
-
-@author: quanwei
-"""
-
-
 import numpy as np
 import pandas as pd
 import time
@@ -17,10 +8,6 @@ from sklearn.metrics import accuracy_score
 train_dir = 'feature/class_train.pkl'
 val_dir = 'feature/class_val.pkl'
 save_dir = 'models'
-##Directories
-#train_dir = 'features/classfeatuer/features_class.pkl'
-#val_dir = 'features/classfeatuer/features_class.pkl'
-#save_dir = 'models'
 
 #Load the Data
 def load_and_preprocess(

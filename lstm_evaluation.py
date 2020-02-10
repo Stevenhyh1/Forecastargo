@@ -123,13 +123,7 @@ def get_nt_abs_values(
         pred_coords: np.ndarray,
         delta_ref: np.ndarray,
         ):
-#    print(obs_coords.shape,pred_coords.shape)
-#    nt_abs_coords = np.concatenate((obs_coords,pred_coords),axis=1)
-#    nt_abs_coords[:,0,:] = delta_ref
-#    for i in range(1,nt_abs_coords.shape[1]):
-#        nt_abs_coords[:,i,:] += nt_abs_coords[:,i-1,:]
-#    
-#    return nt_abs_coords[:,20:,:]
+
     for i in range(pred_coords.shape[0]):
         pred_coords[i,:,:] += delta_ref[i,:]
         

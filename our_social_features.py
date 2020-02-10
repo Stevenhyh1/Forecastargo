@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """This module is used for computing social features for motion forecasting baselines."""
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -423,26 +421,3 @@ class SocialFeaturesUtils:
             social_features[:obs_len,:] = np.concatenate((features,angle),axis=1)
             
         return social_features
-
-#if __name__ == "__main__":
-##    file_names = os.listdir("../train/data")
-##    np.random.shuffle(file_names)
-##    file_names = file_names[:100]
-##    file_names = os.listdir('../forecasting_sample/data')
-#    n_file = 1#len(file_names)
-#    social_instance = SocialFeaturesUtils()
-#    
-##    start = time.time()
-#    
-#    for i in range(n_file):
-#        file_path = "../train/data/"+'97269.csv'#file_names[i]
-##        file_path = file_names
-#        df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
-#        agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-#        social_instance = SocialFeaturesUtils()
-#        features = social_instance.compute_social_features(df,agent_track,20,50,RAW_DATA_FORMAT)
-#        print(i)
-#        print(features[:20,-1])
-#    
-##    end = time.time()
-##    print(end-start)

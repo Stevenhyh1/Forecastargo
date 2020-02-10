@@ -22,12 +22,9 @@ from baseline_config import (
 obs_len = 20
 pred_len = 30
 
-foldername = ['001',  '002', '003',  '004']
-# foldername = ['001','002','003','004','005','006','007','008','009','010','011','012','013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
-# following must be changed according to situation !!!!!!!!!
+foldername = ['001','002','003','004','005','006','007','008','009','010','011','012','013',  '014',  '015',  '016',  '017',  '018',  '019',  '020',  '021']
 data_dir = "../data/val/data"
 batch_feature_dir = "../data/val/data"
-# feature_dir = "../data/train/data/data_pickle"
 
 batch_size = 100
 
@@ -169,24 +166,4 @@ if __name__ == "__main__":
         merge_all_features(data_subdir)
         end = time.time()
         print(end-start)
-    
-
-#    df = pd.read_pickle('../forecasting_sample/all_feature/features_'+mode+'.pkl')
-#    feat = np.stack(df["FEATURES"].values)
-#    ang = feat[0,:,17]
-#    
-#    print(ang)
-    
-    
-#    file_path = '../forecasting_sample/data/3828.csv'
-#    df = pd.read_csv(file_path, dtype={"TIMESTAMP": str})
-#    agent_track = df[df["OBJECT_TYPE"] == "AGENT"].values
-#    
-#    map_features, oracle_centerline, delta_ref = compute_map_features(
-#        agent_track,
-#        obs_len,
-#        pred_len,
-#        RAW_DATA_FORMAT,
-#        mode
-#    )
     

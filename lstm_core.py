@@ -13,8 +13,6 @@ from torch import nn
 from torch.optim import Adam
 from typing import Tuple, Any, Dict
 from torch.utils.data import Dataset, DataLoader
-# from shapely.geometry import Point, Polygon, LineString, LinearRing
-# from shapely.affinity import affine_transform, rotate
 
 from baseline_config import (
     BASELINE_INPUT_FEATURES,
@@ -42,63 +40,6 @@ else:
 #Global parameters
 best_loss = float("inf")
 
-
-#Define utility function
-# def normalize_trajectory(dataframe):
-#     observe_len = 20
-#     translation = []
-#     rotation = []
-
-#     normalized_traj=[]
-#     features_data = dataframe.values
-#     x = features_data[:,:,FEATURE_FORMAT["X"]].astype('float64') #shape [5,50]
-#     y = features_data[:,:,FEATURE_FORMAT["Y"]].astype('float64') #shape [5,50]
-
-#     num_samples  = x.shape[0]
-
-#     #Normalize the trajectory for each sample
-#     for i in range(num_samples):
-#         #In each sample
-#         xy_tuple = np.stack((x[i],y[i]), axis = 1) #shape [50,2]
-#         traj = LineString(xy_tuple)
-#         start = traj[0] #shape [2,]
-
-#         #Translation normalization: start with (0.0, 0.0)
-#         #[a, b, c, d, x, y] is the planner transformation matrix[a, b, x; c, d, y; 0, 0, 1]
-#         g = [1, 0, 0, 1, -start[0], -start[1]]
-#         traj_trans = affine_transform(traj, g)
-        
-#         #Rotation normalization: 
-#         end = traj_trans.coords[observe_len-1]
-#         if end[0]==0 and end[1]==0:
-#             angle = 0.0
-#         elif end[0]==0:
-#             angle = 90.0 if end[1]<0 else -90.0
-#         elif end[1]==0:
-#             angle = 0.0 if end[0]>0 else 180.0
-#         else:
-#             angle = math.degrees(math.atan(end[1]/end[0]))
-#             if (end[0] > 0 and end[1] > 0) or (end[0] > 0 and end[1] < 0):
-#                 angle = -angle
-#             else:
-#                 angle = 180.0 - angle
-#         #Rotate normalization: end with y=0
-#         traj_rotate = rotate(traj_trans, angle, origin=(0,0)).coords[:]
-
-#         #Transform to numpy
-#         traj_norm = np.array(traj_rotate)
-
-#         #Append to containers
-#         translation.append(g)
-#         rotation.append(angle)
-#         normalized_traj.append(traj_norm)
-    
-#     #update the dataframe and return normalized trajectory
-#     dataframe["TRANSLATION"] = translation
-#     dataframe["ROTATION"] = rotation
-#     return np.stack(normalized_traj)
-
-
 #Load the Data
 def load_and_preprocess(
     feature_file: str = "features/forecasting_features_val.pkl",
@@ -109,21 +50,12 @@ def load_and_preprocess(
     dataframe = pd.read_pickle(feature_file)
     features_data = np.stack(dataframe["FEATURES"].values) #shape: [5,50,11]
 
-    #Normalize the trajectory (only for without map)
-    #norm_traj = normalize_trajectory(dataframe)
-
-    #specify the desired inputs and outputs
-    # input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS",
-    #                        "MIN_DISTANCE_FRONT","MIN_DISTANCE_BACK", 
-    #                        "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
-    #                        "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
-    #                        "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
     input_features_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE","NUM_NEIGHBORS", 
                         "MIN_DISTANCE_FRONT_VEL","MIN_DISTANCE_BACK_VEL",
                         "NEIGHBORS_MEAN_VEL","NEIGHBORS_MAX_VEL","NEIGHBORS_MIN_VEL",
                         "RELATIVE_ROT_ANGLE","ANGLE_W_CL"]
     input_features_idx = [FEATURE_FORMAT[feature] for feature in input_features_list]
-    # input_features_idx = [9,10,6,7,8]
+
     #load the features from dataframe
     input_features_data = features_data[:,:,input_features_idx].astype('float64') #shape: [5,50,5]
 
@@ -132,7 +64,6 @@ def load_and_preprocess(
     if mode == "train":
         output_feastures_list = ["OFFSET_FROM_CENTERLINE","DISTANCE_ALONG_CENTERLINE"]
         ouput_features_idx = [FEATURE_FORMAT[feature] for feature in output_feastures_list]
-        # ouput_features_idx = [9,10]
         output_feastures_data = features_data[:,:,ouput_features_idx].astype('float64')
         _output = output_feastures_data[:,20:] #shape: [5,30,2]
     else:
@@ -153,9 +84,7 @@ class LSTMEncoder(nn.Module):
                  hidden_size:int =  32):
         super().__init__()
         self.hidden_size = hidden_size
-        #torch.nn.Linear(in_features, out_features, bias=True)
         self.linear1 = nn.Linear(input_size, embedding_size,bias=True)
-        #torch.nn.LSTMCell(input_size, hidden_size, bias=True)
         self.lstm1 = nn.LSTMCell(embedding_size,hidden_size,bias=True)
 
     def forward(self, x: torch.FloatTensor, hidden: Any):
@@ -207,16 +136,6 @@ def train(train_loader, epoch ,loss_function, logger,
         input_size = _input.shape[1]
         output_size = target.shape[1]
         #print(sample_size, input_size, output_size)
-
-        #initialize the hidden state
-        # >>> rnn = nn.LSTMCell(10, 20)
-        # >>> input = torch.randn(6, 3, 10)
-        # >>> hx = torch.randn(3, 20)
-        # >>> cx = torch.randn(3, 20)
-        # >>> output = []
-        # >>> for i in range(6):
-        #         hx, cx = rnn(input[i], (hx, cx))
-        #         output.append(hx)
 
         hx = torch.zeros(sample_size, encoder.hidden_size).to(device)
         cx = torch.zeros(sample_size, encoder.hidden_size).to(device)
@@ -385,49 +304,11 @@ class Dataset_Loader(Dataset):
 
     def __getitem__(self, idx):
 
-        # datatuple = self.getitem_helpers()
         return (
             torch.FloatTensor(self.input_data[idx]),
-            torch.empty(1) if self.mode == "test" else torch.FloatTensor(
-                self.output_data[idx]),
-            # self.datatuple[idx],
+            torch.empty(1) if self.mode == "test" else torch.FloatTensor(self.output_data[idx])
         )
 
-    def getitem_helpers(self) -> Tuple[Any]:
-
-        helper_df = self.data_dict["dataframe"]
-        candidate_centerlines = helper_df["CANDIDATE_CENTERLINES"].values
-        candidate_nt_distances = helper_df["CANDIDATE_NT_DISTANCES"].values
-        xcoord = np.stack(helper_df["FEATURES"].values
-                          )[:, :, config.FEATURE_FORMAT["X"]].astype("float")
-        ycoord = np.stack(helper_df["FEATURES"].values
-                          )[:, :, config.FEATURE_FORMAT["Y"]].astype("float")
-        centroids = np.stack((xcoord, ycoord), axis=2)
-        _DEFAULT_HELPER_VALUE = np.full((centroids.shape[0]), None)
-        city_names = np.stack(helper_df["FEATURES"].values
-                              )[:, :, config.FEATURE_FORMAT["CITY_NAME"]]
-    #     seq_paths = helper_df["SEQUENCE"].values
-        translation = (helper_df["TRANSLATION"].values
-                       if self.normalize else _DEFAULT_HELPER_VALUE)
-        rotation = (helper_df["ROTATION"].values
-                    if self.normalize else _DEFAULT_HELPER_VALUE)
-
-    #     use_candidates = self.use_map and self.mode == "test"
-
-    #     candidate_delta_references = (
-    #         helper_df["CANDIDATE_DELTA_REFERENCES"].values
-    #         if self.use_map and use_candidates else _DEFAULT_HELPER_VALUE)
-    #     delta_reference = (helper_df["DELTA_REFERENCE"].values
-    #                        if self.use_delta and not use_candidates else
-    #                        _DEFAULT_HELPER_VALUE)
-
-    #     helpers = [None for i in range(len(config.LSTM_HELPER_DICT_IDX))]
-
-    #     # Name of the variables should be the same as keys in LSTM_HELPER_DICT_IDX
-    #     for k, v in config.LSTM_HELPER_DICT_IDX.items():
-    #         helpers[v] = locals()[k.lower()]
-
-    #     return tuple(helpers)
    
 
 def main():
@@ -450,9 +331,6 @@ def main():
     #Get the data, in dictionary format
     data_dict = load_and_preprocess(train_dir)
     val_dict = load_and_preprocess(val_dir)
-    # data_input = data_dict["input"]
-    # data_output = data_dict["output"]
-    # print(data_input.shape)
 
     #Get the model
     loss_function = nn.MSELoss()
@@ -472,10 +350,6 @@ def main():
     train_dataset = Dataset_Loader(data_dict, "train")
     val_dataset = Dataset_Loader(val_dict, "val")
     print(len(train_dataset))
-    
-    # print(train_dataset[0][0].shape) #shape: [20, 5]
-    # print(train_dataset[0][1].shape) #shape: [30, 2]
-    # print(train_dataset[0][0])
 
     #Setting Dataloader
     train_loader = DataLoader(
