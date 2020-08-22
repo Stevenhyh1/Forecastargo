@@ -11,6 +11,7 @@ The testing gives an average distance error of 2.19m and a final distance error 
 * [Approach](#approach)
 * [Installation](#installation)
 * [Usage](#usage)
+* [Reference](#reference)
 
 ## Overview
 The two major types of trajectory predictions of vehicles are maneuver prediction and trajectory prediction, which are classification problem and regression problem respectively. Maneuver prediction is easier to train and evaluate, but the information provided are vague. Trajectory prediction can provide the positions directly, but it is likely to average the multiple possibilities, which leads to the minimum regression error. Thus, it would be useful if the two methods are combined together.
@@ -68,4 +69,4 @@ Install [Pytorch](https://pytorch.org/). The code has been tested with Python 3.
     ```
 
 ## Reference
-https://github.com/jagjeet-singh/argoverse-forecasting
+The code is adapted from Argoverse offical [Motion Forecasting Baseline](https://github.com/jagjeet-singh/argoverse-forecasting).
